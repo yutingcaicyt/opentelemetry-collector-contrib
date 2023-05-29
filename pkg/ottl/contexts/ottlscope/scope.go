@@ -22,11 +22,12 @@ import (
 	"go.opentelemetry.io/collector/pdata/pcommon"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal/ottlcommon"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/internal"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/internal/ottlcommon"
 )
 
-var _ ottlcommon.ResourceContext = TransformContext{}
-var _ ottlcommon.InstrumentationScopeContext = TransformContext{}
+var _ internal.ResourceContext = TransformContext{}
+var _ internal.InstrumentationScopeContext = TransformContext{}
 
 type TransformContext struct {
 	instrumentationScope pcommon.InstrumentationScope
@@ -56,17 +57,36 @@ func (tCtx TransformContext) getCache() pcommon.Map {
 	return tCtx.cache
 }
 
-func NewParser(functions map[string]interface{}, telemetrySettings component.TelemetrySettings, options ...Option) ottl.Parser[TransformContext] {
-	p := ottl.NewParser[TransformContext](
+func NewParser(functions map[string]interface{}, telemetrySettings component.TelemetrySettings, options ...Option) (ottl.Parser[TransformContext], error) {
+	p, err := ottl.NewParser[TransformContext](
 		functions,
 		parsePath,
 		telemetrySettings,
 		ottl.WithEnumParser[TransformContext](parseEnum),
 	)
+	if err != nil {
+		return ottl.Parser[TransformContext]{}, err
+	}
 	for _, opt := range options {
 		opt(&p)
 	}
-	return p
+	return p, nil
+}
+
+type StatementsOption func(*ottl.Statements[TransformContext])
+
+func WithErrorMode(errorMode ottl.ErrorMode) StatementsOption {
+	return func(s *ottl.Statements[TransformContext]) {
+		ottl.WithErrorMode[TransformContext](errorMode)(s)
+	}
+}
+
+func NewStatements(statements []*ottl.Statement[TransformContext], telemetrySettings component.TelemetrySettings, options ...StatementsOption) ottl.Statements[TransformContext] {
+	s := ottl.NewStatements(statements, telemetrySettings)
+	for _, op := range options {
+		op(&s)
+	}
+	return s
 }
 
 func parseEnum(val *ottl.EnumSymbol) (*ottl.Enum, error) {
@@ -89,9 +109,9 @@ func newPathGetSetter(path []ottl.Field) (ottl.GetSetter[TransformContext], erro
 		}
 		return accessCacheKey(mapKey), nil
 	case "resource":
-		return ottlcommon.ResourcePathGetSetter[TransformContext](path[1:])
+		return internal.ResourcePathGetSetter[TransformContext](path[1:])
 	default:
-		return ottlcommon.ScopePathGetSetter[TransformContext](path)
+		return internal.ScopePathGetSetter[TransformContext](path)
 	}
 }
 
