@@ -19,9 +19,9 @@ import (
 	"encoding/binary"
 	"io"
 	"sync"
+	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/plog"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/pdata/ptrace"
@@ -59,13 +59,13 @@ type fileExporter struct {
 
 	formatType string
 	exporter   exportFunc
+
+	flushInterval time.Duration
+	flushTicker   *time.Ticker
+	stopTicker    chan struct{}
 }
 
-func (e *fileExporter) Capabilities() consumer.Capabilities {
-	return consumer.Capabilities{MutatesData: false}
-}
-
-func (e *fileExporter) ConsumeTraces(_ context.Context, td ptrace.Traces) error {
+func (e *fileExporter) consumeTraces(_ context.Context, td ptrace.Traces) error {
 	buf, err := e.tracesMarshaler.MarshalTraces(td)
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (e *fileExporter) ConsumeTraces(_ context.Context, td ptrace.Traces) error 
 	return e.exporter(e, buf)
 }
 
-func (e *fileExporter) ConsumeMetrics(_ context.Context, md pmetric.Metrics) error {
+func (e *fileExporter) consumeMetrics(_ context.Context, md pmetric.Metrics) error {
 	buf, err := e.metricsMarshaler.MarshalMetrics(md)
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (e *fileExporter) ConsumeMetrics(_ context.Context, md pmetric.Metrics) err
 	return e.exporter(e, buf)
 }
 
-func (e *fileExporter) ConsumeLogs(_ context.Context, ld plog.Logs) error {
+func (e *fileExporter) consumeLogs(_ context.Context, ld plog.Logs) error {
 	buf, err := e.logsMarshaler.MarshalLogs(ld)
 	if err != nil {
 		return err
@@ -117,15 +117,58 @@ func exportMessageAsBuffer(e *fileExporter, buf []byte) error {
 	if err := binary.Write(e.file, binary.BigEndian, data); err != nil {
 		return err
 	}
+
 	return nil
 }
 
+// startFlusher starts the flusher.
+// It does not check the flushInterval
+func (e *fileExporter) startFlusher() {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	ff, ok := e.file.(interface{ flush() error })
+	if !ok {
+		// Just in case.
+		return
+	}
+
+	// Create the stop channel.
+	e.stopTicker = make(chan struct{})
+	// Start the ticker.
+	e.flushTicker = time.NewTicker(e.flushInterval)
+	go func() {
+		for {
+			select {
+			case <-e.flushTicker.C:
+				e.mutex.Lock()
+				ff.flush()
+				e.mutex.Unlock()
+			case <-e.stopTicker:
+				return
+			}
+		}
+	}()
+}
+
+// Start starts the flush timer if set.
 func (e *fileExporter) Start(context.Context, component.Host) error {
+	if e.flushInterval > 0 {
+		e.startFlusher()
+	}
 	return nil
 }
 
 // Shutdown stops the exporter and is invoked during shutdown.
+// It stops the flush ticker if set.
 func (e *fileExporter) Shutdown(context.Context) error {
+	e.mutex.Lock()
+	defer e.mutex.Unlock()
+	// Stop the flush ticker.
+	if e.flushTicker != nil {
+		e.flushTicker.Stop()
+		// Stop the go routine.
+		close(e.stopTicker)
+	}
 	return e.file.Close()
 }
 

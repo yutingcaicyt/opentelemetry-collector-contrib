@@ -29,7 +29,6 @@ import (
 	_ "github.com/google/addlicense"
 	_ "github.com/jcchavezs/porto/cmd/porto"
 	_ "github.com/jstemmer/go-junit-report"
-	_ "github.com/tcnksm/ghr"
 	_ "go.opentelemetry.io/build-tools/checkdoc"
 	_ "go.opentelemetry.io/build-tools/chloggen"
 	_ "go.opentelemetry.io/build-tools/crosslink"
@@ -37,4 +36,5 @@ import (
 	_ "go.opentelemetry.io/build-tools/multimod"
 	_ "go.opentelemetry.io/collector/cmd/builder"
 	_ "golang.org/x/tools/cmd/goimports"
+	_ "golang.org/x/vuln/cmd/govulncheck"
 )

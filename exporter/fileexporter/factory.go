@@ -20,6 +20,7 @@ import (
 	"os"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -78,9 +79,10 @@ func createTracesExporter(
 		ctx,
 		set,
 		cfg,
-		fe.Unwrap().(*fileExporter).ConsumeTraces,
+		fe.Unwrap().(*fileExporter).consumeTraces,
 		exporterhelper.WithStart(fe.Start),
 		exporterhelper.WithShutdown(fe.Shutdown),
+		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 	)
 }
 
@@ -101,9 +103,10 @@ func createMetricsExporter(
 		ctx,
 		set,
 		cfg,
-		fe.Unwrap().(*fileExporter).ConsumeMetrics,
+		fe.Unwrap().(*fileExporter).consumeMetrics,
 		exporterhelper.WithStart(fe.Start),
 		exporterhelper.WithShutdown(fe.Shutdown),
+		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 	)
 }
 
@@ -124,9 +127,10 @@ func createLogsExporter(
 		ctx,
 		set,
 		cfg,
-		fe.Unwrap().(*fileExporter).ConsumeLogs,
+		fe.Unwrap().(*fileExporter).consumeLogs,
 		exporterhelper.WithStart(fe.Start),
 		exporterhelper.WithShutdown(fe.Shutdown),
+		exporterhelper.WithCapabilities(consumer.Capabilities{MutatesData: false}),
 	)
 }
 
@@ -141,6 +145,7 @@ func newFileExporter(conf *Config, writer io.WriteCloser) *fileExporter {
 		exporter:         buildExportFunc(conf),
 		compression:      conf.Compression,
 		compressor:       buildCompressor(conf.Compression),
+		flushInterval:    conf.FlushInterval,
 	}
 }
 
@@ -152,13 +157,13 @@ func buildFileWriter(cfg *Config) (io.WriteCloser, error) {
 		}
 		return newBufferedWriteCloser(f), nil
 	}
-	return &lumberjack.Logger{
+	return newBufferedWriteCloser(&lumberjack.Logger{
 		Filename:   cfg.Path,
 		MaxSize:    cfg.Rotation.MaxMegabytes,
 		MaxAge:     cfg.Rotation.MaxDays,
 		MaxBackups: cfg.Rotation.MaxBackups,
 		LocalTime:  cfg.Rotation.LocalTime,
-	}, nil
+	}), nil
 }
 
 // This is the map of already created File exporters for particular configurations.
