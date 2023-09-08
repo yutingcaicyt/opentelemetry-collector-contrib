@@ -240,9 +240,7 @@ func setInternalSpanStatus(span *agentV3.SpanObject, dest ptrace.Status) {
 
 func setSwSpanIDToAttributes(span *agentV3.SpanObject, dest pcommon.Map) {
 	dest.PutInt(AttributeSkywalkingSpanID, int64(span.GetSpanId()))
-	if span.ParentSpanId != -1 {
-		dest.PutInt(AttributeSkywalkingParentSpanID, int64(span.GetParentSpanId()))
-	}
+	dest.PutInt(AttributeSkywalkingParentSpanID, int64(span.GetParentSpanId()))
 }
 
 func swLogsToSpanEvents(logs []*agentV3.Log, dest ptrace.SpanEventSlice) {
