@@ -37,7 +37,13 @@ const (
 	AttributeParentEndpoint            = "parent.endpoint"
 	AttributeSkywalkingSpanID          = "sw8.span_id"
 	AttributeSkywalkingTraceID         = "sw8.trace_id"
+	AttributeSkywalkingIsSizeLimited   = "sw8.is_size_limited"
 	AttributeSkywalkingSegmentID       = "sw8.segment_id"
+	AttributeSkywalkingPeer            = "sw8.peer"
+	AttributeSkywalkingComponentId     = "sw8.componentId"
+	AttributeSkywalkingSpanType 	   = "sw8.span_type"
+	AttributeSkywalkingSpanLayer       = "sw8.span_layer"
+	AttributeSkywalkingSkipAnalysis    = "sw8.skip_analysis"
 	AttributeSkywalkingParentSpanID    = "sw8.parent_span_id"
 	AttributeSkywalkingParentSegmentID = "sw8.parent_segment_id"
 	AttributeNetworkAddressUsedAtPeer  = "network.AddressUsedAtPeer"
@@ -69,8 +75,10 @@ func SkywalkingToTraces(segment *agentV3.SegmentObject) ptrace.Traces {
 	rs.Attributes().PutStr(conventions.AttributeServiceName, segment.GetService())
 	rs.Attributes().PutStr(conventions.AttributeServiceInstanceID, segment.GetServiceInstance())
 	rs.Attributes().PutStr(AttributeSkywalkingTraceID, segment.GetTraceId())
+	rs.Attributes().PutBool(AttributeSkywalkingIsSizeLimited, segment.GetIsSizeLimited())
 
 	il := resourceSpan.ScopeSpans().AppendEmpty()
+	il.Scope().SetName("io.opentelemetry.contrib.skywalking")
 	swSpansToSpanSlice(segment.GetTraceId(), segment.GetTraceSegmentId(), swSpans, il.Spans())
 
 	return traceData
@@ -120,7 +128,12 @@ func swSpanToSpan(traceID string, segmentID string, span *agentV3.SpanObject, de
 	// parent spanid = -1, means(root span) no parent span in skywalking,so just make otlp's parent span id empty.
 	if span.ParentSpanId != -1 {
 		dest.SetParentSpanID(segmentIDToSpanID(segmentID, uint32(span.GetParentSpanId())))
+	} else if len(span.Refs) == 1 {
+		// TODO: SegmentReference references usually have only one element, but in batch consumer case, such as in MQ or async batch process, it could be multiple.
+		// We only handle one element for now.
+		dest.SetParentSpanID(segmentIDToSpanID(span.Refs[0].GetParentTraceSegmentId(), uint32(span.Refs[0].GetParentSpanId())))
 	}
+	// TODO: len(span.Refs) > 1
 
 	dest.SetName(span.OperationName)
 	dest.SetStartTimestamp(microsecondsToTimestamp(span.GetStartTime()))
@@ -135,6 +148,11 @@ func swSpanToSpan(traceID string, segmentID string, span *agentV3.SpanObject, de
 	}
 
 	attrs.PutStr(AttributeSkywalkingSegmentID, segmentID)
+	attrs.PutStr(AttributeSkywalkingPeer, span.Peer)
+	attrs.PutInt(AttributeSkywalkingComponentId, int64(span.GetComponentId()))
+	attrs.PutStr(AttributeSkywalkingSpanType, span.SpanType.String())
+	attrs.PutStr(AttributeSkywalkingSpanLayer, span.SpanLayer.String())
+	attrs.PutBool(AttributeSkywalkingSkipAnalysis , span.SkipAnalysis)
 	setSwSpanIDToAttributes(span, attrs)
 	setInternalSpanStatus(span, dest.Status())
 
