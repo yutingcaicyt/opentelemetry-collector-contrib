@@ -55,6 +55,8 @@ type Reader struct {
 	headerSettings       *headerSettings
 	headerPipeline       pipeline.Pipeline
 	headerPipelineOutput *headerPipelineOutput
+
+	readerDelayCheck ReaderDelayCheck
 }
 
 // offsetToEnd sets the starting offset
@@ -76,6 +78,7 @@ func (r *Reader) ReadToEnd(ctx context.Context) {
 
 	scanner := NewPositionalScanner(r, r.maxLogSize, r.Offset, r.splitFunc)
 
+	preFileSize, preTime := r.prepareBeforeDelayCheck()
 	// Iterate over the tokenized file, emitting entries as we go
 	for {
 		select {
@@ -92,6 +95,8 @@ func (r *Reader) ReadToEnd(ctx context.Context) {
 				r.eof = false
 				r.Errorw("Failed during scan", zap.Error(err))
 			}
+			// No new content is generated for this file, so it does not need to be monitored
+			r.cancelMonitor(r.file.Name())
 			break
 		}
 
@@ -117,6 +122,8 @@ func (r *Reader) ReadToEnd(ctx context.Context) {
 		}
 
 		r.Offset = scanner.Pos()
+
+		preFileSize, preTime = r.delayCheck(preFileSize, preTime)
 	}
 }
 

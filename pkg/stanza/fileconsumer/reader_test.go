@@ -16,11 +16,16 @@ package fileconsumer
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	rcvr "go.opentelemetry.io/collector/receiver"
+	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper"
@@ -249,4 +254,45 @@ func TestMapCopy(t *testing.T) {
 	assert.Equal(t, "value1", initMap["mapVal"].(map[string]any)["nestedVal"])
 	assert.Equal(t, 1, initMap["intVal"])
 	assert.Equal(t, "OrigStr", initMap["strVal"])
+}
+
+func TestReadDelayRecordMetric(t *testing.T) {
+	telemetryTest(t, testReadDelayRecordMetric)
+}
+
+func testReadDelayRecordMetric(t *testing.T, tel testTelemetry, useOtel bool) {
+	tempDir := t.TempDir()
+	temp := openTemp(t, tempDir)
+
+	buildInfo := &operator.BuildInfoInternal{CreateSettings: &rcvr.CreateSettings{
+		ID: component.NewID("filelog"),
+		TelemetrySettings: component.TelemetrySettings{
+			MeterProvider: tel.meterProvider,
+			MetricsLevel:  configtelemetry.LevelDetailed,
+		},
+	},
+		TelemetryUseOtel: useOtel,
+	}
+	telemetry, err := newFileConsumerTelemetry(buildInfo.CreateSettings, buildInfo.TelemetryUseOtel)
+	require.NoError(t, err)
+	r := Reader{
+		SugaredLogger: zap.NewNop().Sugar(),
+		file:          temp,
+		Offset:        2,
+		readerDelayCheck: ReaderDelayCheck{
+			telemetry:        telemetry,
+			fileMissCheckMap: &sync.Map{},
+			maxDelay:         defaultMonitorMaxDelay,
+		},
+	}
+
+	r.delayCheck(2, time.Now().Truncate(time.Millisecond))
+	tel.assertMetrics(t, expectedMetricsValue{
+		count: 1,
+	})
+
+	r.delayCheck(2, time.Now().Truncate(time.Millisecond))
+	tel.assertMetrics(t, expectedMetricsValue{
+		count: 2,
+	})
 }

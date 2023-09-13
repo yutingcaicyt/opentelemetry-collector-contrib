@@ -43,7 +43,9 @@ func NewConfig(b Builder) Config {
 type Builder interface {
 	ID() string
 	Type() string
-	Build(*BuildInfoInternal) (Operator, error)
+	// telemetrySettings and component.ID contains the info that telemetry needs
+	// useOtel controls whether the collector uses open telemetrySettings for internal metrics
+	Build(buildInfo *BuildInfoInternal) (Operator, error)
 	SetID(string)
 }
 
