@@ -158,7 +158,7 @@ func BenchmarkFileInput(b *testing.B) {
 			}
 			cfg.StartAt = "beginning"
 
-			op, err := cfg.Build(testutil.Logger(b))
+			op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(b)})
 			require.NoError(b, err)
 
 			fakeOutput := testutil.NewFakeOutput(b)

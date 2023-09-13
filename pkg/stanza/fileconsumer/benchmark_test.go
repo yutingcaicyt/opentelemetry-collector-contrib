@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/testutil"
 )
 
@@ -157,7 +158,7 @@ func BenchmarkFileInput(b *testing.B) {
 
 			received := make(chan []byte)
 
-			op, err := cfg.Build(testutil.Logger(b), emitOnChan(received))
+			op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(b)}, emitOnChan(received))
 			require.NoError(b, err)
 
 			// write half the lines before starting

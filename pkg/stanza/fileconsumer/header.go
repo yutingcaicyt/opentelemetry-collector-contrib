@@ -49,7 +49,7 @@ func (hc *HeaderConfig) validate() error {
 	p, err := pipeline.Config{
 		Operators:     hc.MetadataOperators,
 		DefaultOutput: outOp,
-	}.Build(nopLogger)
+	}.Build(&operator.BuildInfoInternal{Logger: nopLogger})
 
 	if err != nil {
 		return fmt.Errorf("failed to build pipelines: %w", err)

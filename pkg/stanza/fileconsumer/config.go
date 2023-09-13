@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/featuregate"
 	"go.uber.org/zap"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper"
 )
 
@@ -82,7 +83,7 @@ type Config struct {
 }
 
 // Build will build a file input operator from the supplied configuration
-func (c Config) Build(logger *zap.SugaredLogger, emit EmitFunc) (*Manager, error) {
+func (c Config) Build(buildInfo *operator.BuildInfoInternal, emit EmitFunc) (*Manager, error) {
 	if c.DeleteAfterRead && !allowFileDeletion.IsEnabled() {
 		return nil, fmt.Errorf("`delete_after_read` requires feature gate `%s`", allowFileDeletion.ID())
 	}
@@ -101,7 +102,7 @@ func (c Config) Build(logger *zap.SugaredLogger, emit EmitFunc) (*Manager, error
 		return nil, err
 	}
 
-	return c.buildManager(logger, emit, factory)
+	return c.buildManager(buildInfo, emit, factory)
 }
 
 // BuildWithSplitFunc will build a file input operator with customized splitFunc function
@@ -121,10 +122,10 @@ func (c Config) BuildWithSplitFunc(
 		return nil, err
 	}
 
-	return c.buildManager(logger, emit, factory)
+	return c.buildManager(&operator.BuildInfoInternal{Logger: logger}, emit, factory)
 }
 
-func (c Config) buildManager(logger *zap.SugaredLogger, emit EmitFunc, factory splitterFactory) (*Manager, error) {
+func (c Config) buildManager(buildInfo *operator.BuildInfoInternal, emit EmitFunc, factory splitterFactory) (*Manager, error) {
 	if emit == nil {
 		return nil, fmt.Errorf("must provide emit function")
 	}
@@ -150,6 +151,7 @@ func (c Config) buildManager(logger *zap.SugaredLogger, emit EmitFunc, factory s
 			return nil, fmt.Errorf("failed to build header config: %w", err)
 		}
 	}
+	logger := buildInfo.Logger
 
 	return &Manager{
 		SugaredLogger: logger.With("component", "fileconsumer"),

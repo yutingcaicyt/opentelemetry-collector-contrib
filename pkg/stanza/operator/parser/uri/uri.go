@@ -20,8 +20,6 @@ import (
 	"net/url"
 	"strings"
 
-	"go.uber.org/zap"
-
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/entry"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper"
@@ -51,8 +49,8 @@ type Config struct {
 }
 
 // Build will build a uri parser operator.
-func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
-	parserOperator, err := c.ParserConfig.Build(logger)
+func (c Config) Build(buildInfo *operator.BuildInfoInternal) (operator.Operator, error) {
+	parserOperator, err := c.ParserConfig.Build(buildInfo.Logger)
 	if err != nil {
 		return nil, err
 	}

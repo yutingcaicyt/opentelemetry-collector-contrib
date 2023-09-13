@@ -27,6 +27,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/adapter"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/otlpjsonfilereceiver/internal/metadata"
 )
 
@@ -85,7 +86,7 @@ func createLogsReceiver(_ context.Context, settings rcvr.CreateSettings, configu
 		return nil, err
 	}
 	cfg := configuration.(*Config)
-	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
+	input, err := cfg.Config.Build(&operator.BuildInfoInternal{Logger: settings.Logger.Sugar()}, func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
 		ctx = obsrecv.StartLogsOp(ctx)
 		var l plog.Logs
 		l, err = logsUnmarshaler.UnmarshalLogs(token)
@@ -116,7 +117,7 @@ func createMetricsReceiver(_ context.Context, settings rcvr.CreateSettings, conf
 		return nil, err
 	}
 	cfg := configuration.(*Config)
-	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
+	input, err := cfg.Config.Build(&operator.BuildInfoInternal{Logger: settings.Logger.Sugar()}, func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
 		ctx = obsrecv.StartMetricsOp(ctx)
 		var m pmetric.Metrics
 		m, err = metricsUnmarshaler.UnmarshalMetrics(token)
@@ -147,7 +148,7 @@ func createTracesReceiver(ctx context.Context, settings rcvr.CreateSettings, con
 		return nil, err
 	}
 	cfg := configuration.(*Config)
-	input, err := cfg.Config.Build(settings.Logger.Sugar(), func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
+	input, err := cfg.Config.Build(&operator.BuildInfoInternal{Logger: settings.Logger.Sugar()}, func(ctx context.Context, attrs *fileconsumer.FileAttributes, token []byte) {
 		ctx = obsrecv.StartTracesOp(ctx)
 		var t ptrace.Traces
 		t, err = tracesUnmarshaler.UnmarshalTraces(token)

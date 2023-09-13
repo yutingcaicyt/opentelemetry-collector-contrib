@@ -42,7 +42,9 @@ func createNoopReceiver(nextConsumer consumer.Logs) (*receiver, error) {
 				Builder: noop.NewConfig(),
 			},
 		},
-	}.Build(zap.NewNop().Sugar())
+	}.Build(&operator.BuildInfoInternal{
+		Logger: zap.NewNop().Sugar(),
+	})
 	if err != nil {
 		return nil, err
 	}

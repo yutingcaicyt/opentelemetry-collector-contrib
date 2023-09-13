@@ -19,6 +19,7 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/obsreport"
 	rcvr "go.opentelemetry.io/collector/receiver"
 
@@ -44,6 +45,18 @@ func NewFactory(logReceiverType LogReceiverType, sl component.StabilityLevel) rc
 	)
 }
 
+const telemetryFeaturegateID = "telemetry.useOtelForInternalMetrics"
+
+func useOtel() bool {
+	use := false
+	featuregate.GlobalRegistry().VisitAll(func(gate *featuregate.Gate) {
+		if gate.ID() == telemetryFeaturegateID {
+			use = gate.IsEnabled()
+		}
+	})
+	return use
+}
+
 func createLogsReceiver(logReceiverType LogReceiverType) rcvr.CreateLogsFunc {
 	return func(
 		ctx context.Context,
@@ -60,7 +73,11 @@ func createLogsReceiver(logReceiverType LogReceiverType) rcvr.CreateLogsFunc {
 		pipe, err := pipeline.Config{
 			Operators:     operators,
 			DefaultOutput: emitter,
-		}.Build(params.Logger.Sugar())
+		}.Build(&operator.BuildInfoInternal{
+			Logger:           params.Logger.Sugar(),
+			CreateSettings:   &params,
+			TelemetryUseOtel: useOtel(),
+		})
 		if err != nil {
 			return nil, err
 		}

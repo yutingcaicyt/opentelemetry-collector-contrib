@@ -28,7 +28,7 @@ import (
 
 func newTestParser(t *testing.T) *Parser {
 	cfg := NewConfigWithID("test")
-	op, err := cfg.Build(testutil.Logger(t))
+	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 	require.NoError(t, err)
 	return op.(*Parser)
 }
@@ -42,7 +42,7 @@ func TestInit(t *testing.T) {
 func TestParserBuildFailure(t *testing.T) {
 	cfg := NewConfigWithID("test")
 	cfg.OnError = "invalid_on_error"
-	_, err := cfg.Build(testutil.Logger(t))
+	_, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "invalid `on_error` field")
 }
@@ -79,7 +79,7 @@ func TestProcess(t *testing.T) {
 			"default",
 			func() (operator.Operator, error) {
 				cfg := NewConfigWithID("test_id")
-				return cfg.Build(testutil.Logger(t))
+				return cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			},
 			&entry.Entry{
 				Body: "https://google.com:443/path?user=dev",
@@ -105,7 +105,7 @@ func TestProcess(t *testing.T) {
 				cfg := NewConfigWithID("test_id")
 				cfg.ParseFrom = entry.NewBodyField("url")
 				cfg.ParseTo = entry.RootableField{Field: entry.NewBodyField("url2")}
-				return cfg.Build(testutil.Logger(t))
+				return cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			},
 			&entry.Entry{
 				Body: map[string]interface{}{
@@ -134,7 +134,7 @@ func TestProcess(t *testing.T) {
 			func() (operator.Operator, error) {
 				cfg := NewConfigWithID("test_id")
 				cfg.ParseFrom = entry.NewBodyField("url")
-				return cfg.Build(testutil.Logger(t))
+				return cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			},
 			&entry.Entry{
 				Body: map[string]interface{}{
@@ -501,7 +501,7 @@ func TestBuildParserURL(t *testing.T) {
 
 	t.Run("BasicConfig", func(t *testing.T) {
 		c := newBasicParser()
-		_, err := c.Build(testutil.Logger(t))
+		_, err := c.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 		require.NoError(t, err)
 	})
 }

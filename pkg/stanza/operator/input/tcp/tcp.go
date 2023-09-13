@@ -84,8 +84,8 @@ type BaseConfig struct {
 }
 
 // Build will build a tcp input operator.
-func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
-	inputOperator, err := c.InputConfig.Build(logger)
+func (c Config) Build(buildInfo *operator.BuildInfoInternal) (operator.Operator, error) {
+	inputOperator, err := c.InputConfig.Build(buildInfo.Logger)
 	if err != nil {
 		return nil, err
 	}

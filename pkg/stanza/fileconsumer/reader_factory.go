@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/extension/experimental/storage"
 	"go.uber.org/zap"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/pipeline"
 )
@@ -178,7 +179,7 @@ func (b *readerBuilder) build() (r *Reader, err error) {
 		p, err := pipeline.Config{
 			Operators:     b.headerSettings.config.MetadataOperators,
 			DefaultOutput: outOp,
-		}.Build(b.SugaredLogger)
+		}.Build(&operator.BuildInfoInternal{Logger: b.SugaredLogger})
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to build pipeline: %w", err)
