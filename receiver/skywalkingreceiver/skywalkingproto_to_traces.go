@@ -40,8 +40,8 @@ const (
 	AttributeSkywalkingIsSizeLimited   = "sw8.is_size_limited"
 	AttributeSkywalkingSegmentID       = "sw8.segment_id"
 	AttributeSkywalkingPeer            = "sw8.peer"
-	AttributeSkywalkingComponentId     = "sw8.componentId"
-	AttributeSkywalkingSpanType 	   = "sw8.span_type"
+	AttributeSkywalkingComponentID     = "sw8.componentId"
+	AttributeSkywalkingSpanType        = "sw8.span_type"
 	AttributeSkywalkingSpanLayer       = "sw8.span_layer"
 	AttributeSkywalkingSkipAnalysis    = "sw8.skip_analysis"
 	AttributeSkywalkingParentSpanID    = "sw8.parent_span_id"
@@ -149,10 +149,10 @@ func swSpanToSpan(traceID string, segmentID string, span *agentV3.SpanObject, de
 
 	attrs.PutStr(AttributeSkywalkingSegmentID, segmentID)
 	attrs.PutStr(AttributeSkywalkingPeer, span.Peer)
-	attrs.PutInt(AttributeSkywalkingComponentId, int64(span.GetComponentId()))
+	attrs.PutInt(AttributeSkywalkingComponentID, int64(span.GetComponentId()))
 	attrs.PutStr(AttributeSkywalkingSpanType, span.SpanType.String())
 	attrs.PutStr(AttributeSkywalkingSpanLayer, span.SpanLayer.String())
-	attrs.PutBool(AttributeSkywalkingSkipAnalysis , span.SkipAnalysis)
+	attrs.PutBool(AttributeSkywalkingSkipAnalysis, span.SkipAnalysis)
 	setSwSpanIDToAttributes(span, attrs)
 	setInternalSpanStatus(span, dest.Status())
 

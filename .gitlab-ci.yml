@@ -28,6 +28,7 @@
     receiver/kafkareceiver
     receiver/tcplogreceiver
     receiver/udplogreceiver
+    receiver/skywalkingreceiver
     .
 
 .scripts:
