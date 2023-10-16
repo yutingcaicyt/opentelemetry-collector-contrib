@@ -2,14 +2,15 @@ package skywalkingreceiver
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/featuregate"
 	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/obsreport/obsreporttest"
-	"testing"
-	"time"
 
 	common "skywalking.apache.org/repo/goapi/collect/common/v3"
 	agent "skywalking.apache.org/repo/goapi/collect/language/agent/v3"
@@ -21,7 +22,7 @@ const (
 
 func TestMetricGenerateBySendingTrace(t *testing.T) {
 	seq := "1"
-	so :=&agent.SegmentObject{
+	so := &agent.SegmentObject{
 		TraceId:         "trace" + seq,
 		TraceSegmentId:  "trace-segment" + seq,
 		Service:         "demo-segmentReportService" + seq,
@@ -105,7 +106,7 @@ func TestMetricGenerateBySendingTrace(t *testing.T) {
 	_ = featuregate.GlobalRegistry().Set("telemetry.useOtelForInternalMetrics", true)
 	fakeReceiver := component.NewID("fakeReicever")
 	tt, err := obsreporttest.SetupTelemetry(fakeReceiver)
-	require.NoError(t,err)
+	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tt.Shutdown(context.Background())) })
 
 	rec, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
@@ -114,6 +115,6 @@ func TestMetricGenerateBySendingTrace(t *testing.T) {
 		ReceiverCreateSettings: tt.ToReceiverCreateSettings(),
 	})
 	err = consumeTraces(context.Background(), so, consumertest.NewNop(), rec)
-	require.NoError(t,err)
+	require.NoError(t, err)
 	require.NoError(t, tt.CheckReceiverTraces(transport, 2, 0))
 }
