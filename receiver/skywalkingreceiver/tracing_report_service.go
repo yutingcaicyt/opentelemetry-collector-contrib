@@ -27,6 +27,10 @@ import (
 	agent "skywalking.apache.org/repo/goapi/collect/language/agent/v3"
 )
 
+const (
+	format = "protobuf"
+)
+
 type traceSegmentReportService struct {
 	sr *swReceiver
 	agent.UnimplementedTraceSegmentReportServiceServer
