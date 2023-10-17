@@ -123,11 +123,12 @@ func TestMetricGenerateBySendingTrace(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tt.Shutdown(context.Background())) })
 
-	rec, err := obsreport.NewReceiver(obsreport.ReceiverSettings{
+	rec, er := obsreport.NewReceiver(obsreport.ReceiverSettings{
 		ReceiverID:             fakeReceiver,
 		Transport:              transport,
 		ReceiverCreateSettings: tt.ToReceiverCreateSettings(),
 	})
+	require.NoError(t, er)
 	err = consumeTraces(context.Background(), so, consumertest.NewNop(), rec)
 	require.NoError(t, err)
 	require.NoError(t, tt.CheckReceiverTraces(transport, 2, 0))
