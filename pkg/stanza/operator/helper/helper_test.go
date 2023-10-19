@@ -14,8 +14,6 @@
 package helper
 
 import (
-	"go.uber.org/zap"
-
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 )
 
@@ -46,6 +44,6 @@ func newHelpersConfig() *helpersConfig {
 
 // This function is impelmented for compatibility with operatortest
 // but is not meant to be used directly
-func (h *helpersConfig) Build(*zap.SugaredLogger) (operator.Operator, error) {
+func (h *helpersConfig) Build(*operator.BuildInfoInternal) (operator.Operator, error) {
 	panic("not impelemented")
 }

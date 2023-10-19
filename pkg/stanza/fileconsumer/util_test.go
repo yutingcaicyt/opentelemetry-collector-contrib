@@ -26,7 +26,6 @@ import (
 
 	"github.com/observiq/nanojack"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper"
@@ -82,7 +81,7 @@ func buildTestManager(t *testing.T, cfg *Config) (*Manager, chan *emitParams) {
 }
 
 func buildTestManagerWithEmit(t *testing.T, cfg *Config, emitChan chan *emitParams) *Manager {
-	input, err := cfg.Build(testutil.Logger(t), testEmitFunc(emitChan))
+	input, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)}, testEmitFunc(emitChan))
 	require.NoError(t, err)
 	return input
 }
@@ -231,6 +230,6 @@ func newMockOperatorConfig(cfg *Config) *mockOperatorConfig {
 
 // This function is impelmented for compatibility with operatortest
 // but is not meant to be used directly
-func (h *mockOperatorConfig) Build(*zap.SugaredLogger) (operator.Operator, error) {
+func (h *mockOperatorConfig) Build(buildInFo *operator.BuildInfoInternal) (operator.Operator, error) {
 	panic("not impelemented")
 }

@@ -18,8 +18,6 @@ import (
 	"errors"
 	"fmt"
 
-	"go.uber.org/zap"
-
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/input/tcp"
@@ -52,7 +50,8 @@ type Config struct {
 	UDP                *udp.BaseConfig `mapstructure:"udp"`
 }
 
-func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
+func (c Config) Build(buildInfo *operator.BuildInfoInternal) (operator.Operator, error) {
+	logger := buildInfo.Logger
 	inputBase, err := c.InputConfig.Build(logger)
 	if err != nil {
 		return nil, err
@@ -62,7 +61,7 @@ func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 	syslogParserCfg.BaseConfig = c.BaseConfig
 	syslogParserCfg.SetID(inputBase.ID() + "_internal_parser")
 	syslogParserCfg.OutputIDs = c.OutputIDs
-	syslogParser, err := syslogParserCfg.Build(logger)
+	syslogParser, err := syslogParserCfg.Build(buildInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve syslog config: %w", err)
 	}
@@ -71,7 +70,7 @@ func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 		tcpInputCfg := tcp.NewConfigWithID(inputBase.ID() + "_internal_tcp")
 		tcpInputCfg.BaseConfig = *c.TCP
 
-		tcpInput, err := tcpInputCfg.Build(logger)
+		tcpInput, err := tcpInputCfg.Build(buildInfo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve tcp config: %w", err)
 		}
@@ -98,7 +97,7 @@ func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 			return nil, errors.New("octet_counting and non_transparent_framing is not compatible with UDP")
 		}
 
-		udpInput, err := udpInputCfg.Build(logger)
+		udpInput, err := udpInputCfg.Build(&operator.BuildInfoInternal{Logger: logger})
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve upd config: %w", err)
 		}

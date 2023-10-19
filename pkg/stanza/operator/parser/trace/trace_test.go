@@ -33,7 +33,7 @@ func TestInit(t *testing.T) {
 }
 func TestDefaultParser(t *testing.T) {
 	traceParserConfig := NewConfig()
-	_, err := traceParserConfig.Build(testutil.Logger(t))
+	_, err := traceParserConfig.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 	require.NoError(t, err)
 }
 
@@ -94,7 +94,7 @@ func TestBuild(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg, err := tc.input()
 			require.NoError(t, err, "expected nil error when running test cases input func")
-			op, err := cfg.Build(testutil.Logger(t))
+			op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			if tc.expectErr {
 				require.Error(t, err, "expected error while building trace_parser operator")
 				return
@@ -120,7 +120,7 @@ func TestProcess(t *testing.T) {
 			"no-op",
 			func() (operator.Operator, error) {
 				cfg := NewConfigWithID("test_id")
-				return cfg.Build(testutil.Logger(t))
+				return cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			},
 			&entry.Entry{
 				Body: "https://google.com:443/path?user=dev",
@@ -139,7 +139,7 @@ func TestProcess(t *testing.T) {
 				cfg.SpanID.ParseFrom = &spanFrom
 				cfg.TraceID.ParseFrom = &traceFrom
 				cfg.TraceFlags.ParseFrom = &flagsFrom
-				return cfg.Build(testutil.Logger(t))
+				return cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			},
 			&entry.Entry{
 				Body: map[string]interface{}{
@@ -269,7 +269,7 @@ func TestTraceParserParse(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			traceParserConfig := NewConfigWithID("")
-			_, _ = traceParserConfig.Build(testutil.Logger(t))
+			_, _ = traceParserConfig.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			e := entry.New()
 			e.Body = tc.inputRecord
 			err := traceParserConfig.Parse(e)

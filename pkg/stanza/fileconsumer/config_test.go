@@ -556,7 +556,7 @@ func TestBuild(t *testing.T) {
 
 			nopEmit := func(_ context.Context, _ *FileAttributes, _ []byte) {}
 
-			input, err := cfg.Build(testutil.Logger(t), nopEmit)
+			input, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)}, nopEmit)
 			tc.errorRequirement(t, err)
 			if err != nil {
 				return
@@ -729,7 +729,7 @@ func TestBuildWithHeader(t *testing.T) {
 
 			nopEmit := func(_ context.Context, _ *FileAttributes, _ []byte) {}
 
-			input, err := cfg.Build(testutil.Logger(t), nopEmit)
+			input, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)}, nopEmit)
 			tc.errorRequirement(t, err)
 			if err != nil {
 				return
