@@ -21,9 +21,14 @@ import (
 	"io"
 
 	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/obsreport"
 	"google.golang.org/protobuf/proto"
 	common "skywalking.apache.org/repo/goapi/collect/common/v3"
 	agent "skywalking.apache.org/repo/goapi/collect/language/agent/v3"
+)
+
+const (
+	format = "protobuf"
 )
 
 type traceSegmentReportService struct {
@@ -41,7 +46,7 @@ func (s *traceSegmentReportService) Collect(stream agent.TraceSegmentReportServi
 			return err
 		}
 
-		err = consumeTraces(stream.Context(), segmentObject, s.sr.nextConsumer)
+		err = consumeTraces(stream.Context(), segmentObject, s.sr.nextConsumer, s.sr.grpcObsrecv)
 		if err != nil {
 			return stream.SendAndClose(&common.Commands{})
 		}
@@ -54,7 +59,7 @@ func (s *traceSegmentReportService) CollectInSync(ctx context.Context, segments 
 		if err != nil {
 			fmt.Printf("cannot marshal segemnt from sync, %v", err)
 		}
-		err = consumeTraces(ctx, segment, s.sr.nextConsumer)
+		err = consumeTraces(ctx, segment, s.sr.nextConsumer, s.sr.grpcObsrecv)
 		if err != nil {
 			fmt.Printf("cannot consume traces, %v", err)
 		}
@@ -63,10 +68,13 @@ func (s *traceSegmentReportService) CollectInSync(ctx context.Context, segments 
 	return &common.Commands{}, nil
 }
 
-func consumeTraces(ctx context.Context, segment *agent.SegmentObject, consumer consumer.Traces) error {
+func consumeTraces(ctx context.Context, segment *agent.SegmentObject, consumer consumer.Traces, obsreport *obsreport.Receiver) error {
 	if segment == nil {
 		return nil
 	}
 	ptd := SkywalkingToTraces(segment)
-	return consumer.ConsumeTraces(ctx, ptd)
+	obsContext := obsreport.StartTracesOp(ctx)
+	err := consumer.ConsumeTraces(ctx, ptd)
+	obsreport.EndTracesOp(obsContext, format, ptd.SpanCount(), err)
+	return err
 }
