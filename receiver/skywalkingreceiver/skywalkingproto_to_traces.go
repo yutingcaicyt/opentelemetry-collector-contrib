@@ -50,11 +50,7 @@ const (
 )
 
 var otSpanTagsMapping = map[string]string{
-	"url":         conventions.AttributeHTTPURL,
-	"status_code": conventions.AttributeHTTPStatusCode,
-	"db.type":     conventions.AttributeDBSystem,
-	"db.instance": conventions.AttributeDBName,
-	"mq.broker":   conventions.AttributeNetPeerName,
+	"url": conventions.AttributeHTTPURL,
 }
 
 func SkywalkingToTraces(segment *agentV3.SegmentObject) ptrace.Traces {
@@ -68,10 +64,6 @@ func SkywalkingToTraces(segment *agentV3.SegmentObject) ptrace.Traces {
 	resourceSpan := traceData.ResourceSpans().AppendEmpty()
 	rs := resourceSpan.Resource()
 
-	for _, span := range swSpans {
-		swTagsToInternalResource(span, rs)
-	}
-
 	rs.Attributes().PutStr(conventions.AttributeServiceName, segment.GetService())
 	rs.Attributes().PutStr(conventions.AttributeServiceInstanceID, segment.GetServiceInstance())
 	rs.Attributes().PutStr(AttributeSkywalkingTraceID, segment.GetTraceId())
@@ -82,27 +74,6 @@ func SkywalkingToTraces(segment *agentV3.SegmentObject) ptrace.Traces {
 	swSpansToSpanSlice(segment.GetTraceId(), segment.GetTraceSegmentId(), swSpans, il.Spans())
 
 	return traceData
-}
-
-func swTagsToInternalResource(span *agentV3.SpanObject, dest pcommon.Resource) {
-	if span == nil {
-		return
-	}
-
-	attrs := dest.Attributes()
-	attrs.Clear()
-
-	tags := span.Tags
-	if tags == nil {
-		return
-	}
-
-	for _, tag := range tags {
-		otKey, ok := otSpanTagsMapping[tag.Key]
-		if ok {
-			attrs.PutStr(otKey, tag.Value)
-		}
-	}
 }
 
 func swSpansToSpanSlice(traceID string, segmentID string, spans []*agentV3.SpanObject, dest ptrace.SpanSlice) {
@@ -141,11 +112,7 @@ func swSpanToSpan(traceID string, segmentID string, span *agentV3.SpanObject, de
 
 	attrs := dest.Attributes()
 	attrs.EnsureCapacity(len(span.Tags))
-	swKvPairsToInternalAttributes(span.Tags, attrs)
-	// drop the attributes slice if all of them were replaced during translation
-	if attrs.Len() == 0 {
-		attrs.Clear()
-	}
+	swKvPairsToInternalAttributes(span.GetSpanLayer(), span.Tags, attrs)
 
 	attrs.PutStr(AttributeSkywalkingSegmentID, segmentID)
 	attrs.PutStr(AttributeSkywalkingPeer, span.Peer)
@@ -173,12 +140,12 @@ func swSpanToSpan(traceID string, segmentID string, span *agentV3.SpanObject, de
 		dest.SetKind(ptrace.SpanKindUnspecified)
 	}
 
-	swLogsToSpanEvents(span.GetLogs(), dest.Events())
+	swLogsToSpanEvents(span.GetSpanLayer(), span.GetLogs(), dest.Events())
 	// skywalking: In the across thread and across processes, these references target the parent segments.
-	swReferencesToSpanLinks(span.Refs, dest.Links())
+	swReferencesToSpanLinks(span.GetSpanLayer(), span.GetRefs(), dest.Links())
 }
 
-func swReferencesToSpanLinks(refs []*agentV3.SegmentReference, dest ptrace.SpanLinkSlice) {
+func swReferencesToSpanLinks(layer agentV3.SpanLayer, refs []*agentV3.SegmentReference, dest ptrace.SpanLinkSlice) {
 	if len(refs) == 0 {
 		return
 	}
@@ -224,7 +191,7 @@ func swReferencesToSpanLinks(refs []*agentV3.SegmentReference, dest ptrace.SpanL
 				Value: strconv.Itoa(int(ref.ParentSpanId)),
 			},
 		}
-		swKvPairsToInternalAttributes(kvParis, link.Attributes())
+		swKvPairsToInternalAttributes(layer, kvParis, link.Attributes())
 	}
 }
 
@@ -243,7 +210,7 @@ func setSwSpanIDToAttributes(span *agentV3.SpanObject, dest pcommon.Map) {
 	dest.PutInt(AttributeSkywalkingParentSpanID, int64(span.GetParentSpanId()))
 }
 
-func swLogsToSpanEvents(logs []*agentV3.Log, dest ptrace.SpanEventSlice) {
+func swLogsToSpanEvents(layer agentV3.SpanLayer, logs []*agentV3.Log, dest ptrace.SpanEventSlice) {
 	if len(logs) == 0 {
 		return
 	}
@@ -266,16 +233,28 @@ func swLogsToSpanEvents(logs []*agentV3.Log, dest ptrace.SpanEventSlice) {
 		attrs := event.Attributes()
 		attrs.Clear()
 		attrs.EnsureCapacity(len(log.GetData()))
-		swKvPairsToInternalAttributes(log.GetData(), attrs)
+		swKvPairsToInternalAttributes(layer, log.GetData(), attrs)
 	}
 }
 
-func swKvPairsToInternalAttributes(pairs []*common.KeyStringValuePair, dest pcommon.Map) {
+func swKvPairsToInternalAttributes(layer agentV3.SpanLayer, pairs []*common.KeyStringValuePair, dest pcommon.Map) {
 	if pairs == nil {
 		return
 	}
 
 	for _, pair := range pairs {
+		if pair.Key == "status_code" && layer == agentV3.SpanLayer_Http {
+			if statusCode, err := strconv.Atoi(pair.Value); err == nil {
+				dest.PutInt(conventions.AttributeHTTPStatusCode, int64(statusCode))
+				continue
+			}
+		}
+
+		if otKey, ok := otSpanTagsMapping[pair.Key]; ok {
+			dest.PutStr(otKey, pair.Value)
+			continue
+		}
+
 		dest.PutStr(pair.Key, pair.Value)
 	}
 }

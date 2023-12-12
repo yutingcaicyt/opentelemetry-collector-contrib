@@ -76,7 +76,7 @@ func TestSwKvPairsToInternalAttributes(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			swKvPairsToInternalAttributes(test.swSpan.GetSpans()[0].Tags, test.dest.Attributes())
+			swKvPairsToInternalAttributes(test.swSpan.GetSpans()[0].GetSpanLayer(), test.swSpan.GetSpans()[0].Tags, test.dest.Attributes())
 			assert.Equal(t, test.dest.Attributes().Len(), len(test.swSpan.GetSpans()[0].Tags))
 			for _, tag := range test.swSpan.GetSpans()[0].Tags {
 				value, _ := test.dest.Attributes().Get(tag.Key)
@@ -127,7 +127,7 @@ func TestSwReferencesToSpanLinks(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			swReferencesToSpanLinks(test.swSpan.GetSpans()[0].Refs, test.dest.Links())
+			swReferencesToSpanLinks(test.swSpan.GetSpans()[0].GetSpanLayer(), test.swSpan.GetSpans()[0].Refs, test.dest.Links())
 			assert.Equal(t, 1, test.dest.Links().Len())
 		})
 	}
@@ -153,7 +153,7 @@ func TestSwLogsToSpanEvents(t *testing.T) {
 	for index, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			seq := strconv.Itoa(index)
-			swLogsToSpanEvents(test.swSpan.GetSpans()[0].Logs, test.dest.Events())
+			swLogsToSpanEvents(test.swSpan.GetSpans()[0].GetSpanLayer(), test.swSpan.GetSpans()[0].Logs, test.dest.Events())
 			assert.Equal(t, 1, test.dest.Events().Len())
 			assert.Equal(t, "logs", test.dest.Events().At(0).Name())
 			logValue, _ := test.dest.Events().At(0).Attributes().Get("log-key" + seq)
