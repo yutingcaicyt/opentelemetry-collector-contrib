@@ -209,6 +209,8 @@ replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator
 
 replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheusremotewrite => ../../pkg/translator/prometheusremotewrite
 
+replace github.com/prometheus/prometheus => gitlab-ee.zhenguanyu.com/data-ingestion/prometheus v0.43.0-kanyun-tag
+
 retract (
 	v0.76.2
 	v0.76.1
