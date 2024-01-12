@@ -2469,8 +2469,8 @@ github.com/yusufpapurcu/wmi v1.2.2 h1:KBNDSne4vP5mbSWnJbO+51IMOXJB67QiYCSBrubbPR
 github.com/yusufpapurcu/wmi v1.2.2/go.mod h1:SBZ9tNy3G9/m5Oi98Zks0QjeHVDvuK0qfxQmPyzfmi0=
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
 github.com/zorkian/go-datadog-api v2.30.0+incompatible h1:R4ryGocppDqZZbnNc5EDR8xGWF/z/MxzWnqTUijDQes=
-gitlab-ee.zhenguanyu.com/data-ingestion/prometheus v0.43.0-kanyun-tag h1:baHuNNjeb6lu22MJtgXfR+I+MJgm7XiwPfI4SQUE3gE=
-gitlab-ee.zhenguanyu.com/data-ingestion/prometheus v0.43.0-kanyun-tag/go.mod h1:2BA14LgBeqlPuzObSEbh+Y+JwLH2GcqDlJKbF2sA6FM=
+gitlab-ee.zhenguanyu.com/data-ingestion/prometheus v0.43.1-kanyun-tag h1:JtWQfyocdswfIL7uWjiDwvSnJf6VcMl5HWPf2Wgmf5A=
+gitlab-ee.zhenguanyu.com/data-ingestion/prometheus v0.43.1-kanyun-tag/go.mod h1:2BA14LgBeqlPuzObSEbh+Y+JwLH2GcqDlJKbF2sA6FM=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/bbolt v1.3.7 h1:j+zJOnnEjF/kyHlDDgGnVL/AIqIJPq8UoB2GSNfkUfQ=
