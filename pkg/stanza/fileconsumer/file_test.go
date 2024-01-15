@@ -1546,3 +1546,211 @@ func TestStalePartialFingerprintDiscarded(t *testing.T) {
 	waitForTokens(t, emitCalls, [][]byte{[]byte(content), []byte(newContent1), []byte(newContent)})
 	operator.wg.Wait()
 }
+
+func TestFileMissCheckWillClearOutdatedPathFromMap(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	cfg := NewConfig().includeDir(tempDir)
+	cfg.IncludeFileName = true
+	cfg.IncludeFilePath = true
+	cfg.IncludeFileNameResolved = false
+	cfg.IncludeFilePathResolved = false
+	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
+	m, _ := buildTestManager(t, cfg)
+
+	// outdated filePath will be deleted from fileMissCheckMap
+	for i := 0; i < 5; i++ {
+		m.monitorManager.fileMissCheckMap.Store("/outdatedFilePath"+strconv.Itoa(i), &missCheckInfo{missedTimes: 0})
+	}
+
+	var tmpMap = make(map[int]string)
+
+	for i := 0; i < 5; i++ {
+		temp := openTemp(t, tempDir)
+		writeString(t, temp, "testlog\n")
+		m.monitorManager.fileMissCheckMap.Store(temp.Name(), &missCheckInfo{missedTimes: 0})
+		tmpMap[i] = temp.Name()
+	}
+	m.fileMissCheck()
+
+	for i := 0; i < 5; i++ {
+		_, ok := m.monitorManager.fileMissCheckMap.Load("/outdatedFilePath" + strconv.Itoa(i))
+		require.Equal(t, false, ok)
+	}
+
+	for i := 0; i < 5; i++ {
+		_, ok := m.monitorManager.fileMissCheckMap.Load(tmpMap[i])
+		require.Equal(t, true, ok)
+	}
+}
+
+func TestFileMissCheckWillBuildMapEachTime(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	cfg := NewConfig().includeDir(tempDir)
+	cfg.IncludeFileName = true
+	cfg.IncludeFilePath = true
+	cfg.IncludeFileNameResolved = false
+	cfg.IncludeFilePathResolved = false
+	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
+	m, _ := buildTestManager(t, cfg)
+
+	temp := openTemp(t, tempDir)
+	writeString(t, temp, "testlog\n")
+	matchFiles := m.finder.FindFiles()
+
+	require.Equal(t, 1, len(matchFiles))
+	require.Equal(t, temp.Name(), matchFiles[0])
+
+	m.fileMissCheck()
+
+	v, ok := m.monitorManager.fileMissCheckMap.Load(temp.Name())
+	require.Equal(t, true, ok)
+	require.Equal(t, 0, v.(*missCheckInfo).missedTimes)
+}
+
+func TestFileMissCheckWillAddMissInfoWhenFileMissed(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	cfg := NewConfig().includeDir(tempDir)
+	cfg.IncludeFileName = true
+	cfg.IncludeFilePath = true
+	cfg.IncludeFileNameResolved = false
+	cfg.IncludeFilePathResolved = false
+	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
+	m, _ := buildTestManagerWithOptionsAndTelemetry(t, cfg, false, setupTelemetry(t, false))
+
+	temp := openTemp(t, tempDir)
+	writeString(t, temp, "testlog\n")
+	matchFiles := m.finder.FindFiles()
+
+	require.Equal(t, 1, len(matchFiles))
+
+	m.fileMissCheck()
+
+	v, ok := m.monitorManager.fileMissCheckMap.Load(temp.Name())
+	require.Equal(t, true, ok)
+	require.Equal(t, 0, v.(*missCheckInfo).missedTimes)
+
+	m.fileMissCheck()
+	value, ok := m.monitorManager.fileMissCheckMap.Load(temp.Name())
+	require.Equal(t, true, ok)
+	require.Equal(t, 1, value.(*missCheckInfo).missedTimes)
+}
+
+func TestFileReadDelayMetric(t *testing.T) {
+	telemetryTest(t, testFileReadDelay)
+}
+
+func testFileReadDelay(t *testing.T, tel testTelemetry, useOtel bool) {
+	tempDir := t.TempDir()
+	cfg := NewConfig().includeDir(tempDir)
+	cfg.IncludeFileName = true
+	cfg.IncludeFilePath = true
+	cfg.IncludeFileNameResolved = false
+	cfg.IncludeFilePathResolved = false
+	cfg.StartAt = "beginning"
+	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
+	m, emit := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
+	m.persister = testutil.NewMockPersister("test")
+
+	temp := openTemp(t, tempDir)
+	writeString(t, temp, "testlog\n")
+
+	matchFiles := m.finder.FindFiles()
+	require.Equal(t, 1, len(matchFiles))
+
+	m.poll(context.Background())
+
+	select {
+	case call := <-emit:
+		require.Equal(t, []byte("testlog"), call.token)
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "Timed out waiting for token")
+	}
+	tel.assertMetrics(t, expectedMetricsValue{
+		count: 1,
+	})
+}
+
+func TestRecordMetric(t *testing.T) {
+	telemetryTest(t, testRecordMetric)
+}
+
+func testRecordMetric(t *testing.T, tel testTelemetry, useOtel bool) {
+	cfg := NewConfig().includeDir("test")
+	cfg.IncludeFileName = true
+	cfg.IncludeFilePath = true
+	cfg.IncludeFileNameResolved = false
+	cfg.IncludeFilePathResolved = false
+	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
+	m, _ := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
+	m.monitorManager.telemetry.record(100)
+	m.monitorManager.telemetry.record(200)
+
+	tel.assertMetrics(t, expectedMetricsValue{
+		fileReadDelaySum: 300,
+		count:            2,
+	})
+}
+
+func TestFileMissRecordMetric(t *testing.T) {
+	telemetryTest(t, testFileMissRecordMetric)
+}
+
+func testFileMissRecordMetric(t *testing.T, tel testTelemetry, useOtel bool) {
+	tempDir := t.TempDir()
+	cfg := NewConfig().includeDir(tempDir)
+	cfg.IncludeFileName = true
+	cfg.IncludeFilePath = true
+	cfg.IncludeFileNameResolved = false
+	cfg.IncludeFilePathResolved = false
+	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
+	m, _ := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
+	m.persister = testutil.NewMockPersister("test")
+	temp := openTemp(t, tempDir)
+
+	m.monitorManager.fileMissCheckMap.Store(temp.Name(), &missCheckInfo{missedTimes: 3})
+
+	m.fileMissCheck()
+
+	tel.assertMetrics(t, expectedMetricsValue{
+		fileReadDelaySum: m.monitorManager.checkInterval.Milliseconds() * 3,
+		count:            1,
+	})
+
+	m.fileMissCheck()
+	tel.assertMetrics(t, expectedMetricsValue{
+		fileReadDelaySum: m.monitorManager.checkInterval.Milliseconds() * (4 + 3),
+		count:            2,
+	})
+
+}
+
+func TestMissedFileInfoWillBeDeletedWhenItStartsToRead(t *testing.T) {
+	telemetryTest(t, testMissedFileInfoWillBeDeletedWhenItStartsToRead)
+}
+
+func testMissedFileInfoWillBeDeletedWhenItStartsToRead(t *testing.T, tel testTelemetry, useOtel bool) {
+	tempDir := t.TempDir()
+	cfg := NewConfig().includeDir(tempDir)
+	cfg.IncludeFileName = true
+	cfg.IncludeFilePath = true
+	cfg.IncludeFileNameResolved = false
+	cfg.IncludeFilePathResolved = false
+	cfg.StartAt = "beginning"
+	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
+	m, emit := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
+	m.persister = testutil.NewMockPersister("test")
+
+	temp := openTemp(t, tempDir)
+	writeString(t, temp, "testlog\n")
+	m.monitorManager.fileMissCheckMap.Store(temp.Name(), &missCheckInfo{missedTimes: 1})
+	m.poll(context.Background())
+	waitForToken(t, emit, []byte("testlog"))
+	_, ok := m.monitorManager.fileMissCheckMap.Load(temp.Name())
+	require.Equal(t, false, ok)
+}

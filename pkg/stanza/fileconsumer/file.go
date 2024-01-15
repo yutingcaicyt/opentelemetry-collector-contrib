@@ -47,6 +47,8 @@ type Manager struct {
 
 	knownFiles []*Reader
 	seenPaths  map[string]struct{}
+
+	monitorManager *MonitorManager
 }
 
 func (m *Manager) Start(persister operator.Persister) error {
@@ -81,6 +83,7 @@ func (m *Manager) Stop() error {
 	}
 	m.knownFiles = nil
 	m.cancel = nil
+	m.monitorManager = nil
 	return nil
 }
 
@@ -107,6 +110,7 @@ func (m *Manager) startPoller(ctx context.Context) {
 
 // poll checks all the watched paths for new entries
 func (m *Manager) poll(ctx context.Context) {
+	var pollStartTime = time.Now()
 	// Increment the generation on all known readers
 	// This is done here because the next generation is about to start
 	for i := 0; i < len(m.knownFiles); i++ {
@@ -118,6 +122,10 @@ func (m *Manager) poll(ctx context.Context) {
 
 	// Get the list of paths on disk
 	matches := m.finder.FindFiles()
+
+	// Before consuming files, start the monitor
+	m.monitorStart(ctx, pollStartTime, matches)
+
 	for len(matches) > m.maxBatchFiles {
 		m.consume(ctx, matches[:m.maxBatchFiles])
 
@@ -201,6 +209,8 @@ func (m *Manager) makeReaders(filesPaths []string) []*Reader {
 		}
 		file, err := os.Open(path) // #nosec - operator must read in files defined by user
 		if err != nil {
+			// if the file can't be opened, it does not need to be MonitorStart
+			m.cancelMonitor(path)
 			m.Debugf("Failed to open file", zap.Error(err))
 			continue
 		}
@@ -216,6 +226,11 @@ func (m *Manager) makeReaders(filesPaths []string) []*Reader {
 			continue
 		}
 		fps = append(fps, fp)
+
+		// if fp of the file is empty, it does not need to be read and monitor
+		if len(fp.FirstBytes) == 0 {
+			m.cancelMonitor(file.Name())
+		}
 	}
 
 	// Exclude any empty fingerprints or duplicate fingerprints to avoid doubling up on copy-truncate files
@@ -253,6 +268,14 @@ OUTER:
 		if err != nil {
 			m.Errorw("Failed to create reader", zap.Error(err))
 			continue
+		}
+		if m.monitorManager != nil {
+			reader.readerDelayCheck = ReaderDelayCheck{
+				startPollTime:    m.monitorManager.curPollStartTime,
+				fileMissCheckMap: m.monitorManager.fileMissCheckMap,
+				telemetry:        m.monitorManager.telemetry,
+				maxDelay:         m.monitorManager.maxDelay,
+			}
 		}
 		readers = append(readers, reader)
 	}

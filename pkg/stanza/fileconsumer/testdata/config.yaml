@@ -163,3 +163,8 @@ header_config:
     pattern: "^#"
     metadata_operators:
      - type: "regex_parser"
+monitor_config:
+  type: mock
+  monitor:
+    enabled: true
+    max_delay: 1s

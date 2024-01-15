@@ -379,6 +379,17 @@ func TestUnmarshal(t *testing.T) {
 					return newMockOperatorConfig(cfg)
 				}(),
 			},
+			{
+				Name: "monitor_config",
+				Expect: func() *mockOperatorConfig {
+					cfg := NewConfig()
+					cfg.Monitor = MonitorConfig{
+						Enabled:  true,
+						MaxDelay: 1000 * 1000 * 1000,
+					}
+					return newMockOperatorConfig(cfg)
+				}(),
+			},
 		},
 	}.Run(t)
 }

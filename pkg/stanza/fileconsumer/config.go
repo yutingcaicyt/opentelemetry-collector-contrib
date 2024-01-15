@@ -80,6 +80,7 @@ type Config struct {
 	DeleteAfterRead         bool                  `mapstructure:"delete_after_read,omitempty"`
 	Splitter                helper.SplitterConfig `mapstructure:",squash,omitempty"`
 	Header                  *HeaderConfig         `mapstructure:"header,omitempty"`
+	Monitor                 MonitorConfig         `mapstructure:"monitor,omitempty"`
 }
 
 // Build will build a file input operator from the supplied configuration
@@ -176,6 +177,7 @@ func (c Config) buildManager(buildInfo *operator.BuildInfoInternal, emit EmitFun
 		deleteAfterRead: c.DeleteAfterRead,
 		knownFiles:      make([]*Reader, 0, 10),
 		seenPaths:       make(map[string]struct{}, 100),
+		monitorManager:  c.newMonitorManager(buildInfo),
 	}, nil
 }
 
