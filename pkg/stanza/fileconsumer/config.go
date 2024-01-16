@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/text/encoding"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/decode"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/emit"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/fingerprint"
@@ -78,6 +79,7 @@ type Config struct {
 	IncludeFilePathResolved bool            `mapstructure:"include_file_path_resolved,omitempty"`
 	Header                  *HeaderConfig   `mapstructure:"header,omitempty"`
 	DeleteAfterRead         bool            `mapstructure:"delete_after_read,omitempty"`
+	Monitor                 MonitorConfig         `mapstructure:"monitor,omitempty"`
 }
 
 type HeaderConfig struct {
@@ -86,7 +88,7 @@ type HeaderConfig struct {
 }
 
 // Build will build a file input operator from the supplied configuration
-func (c Config) Build(logger *zap.SugaredLogger, emit emit.Callback) (*Manager, error) {
+func (c Config) Build(buildInfo *operator.BuildInfoInternal, emit emit.Callback) (*Manager, error) {
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
@@ -106,7 +108,7 @@ func (c Config) Build(logger *zap.SugaredLogger, emit emit.Callback) (*Manager, 
 		trimFunc = c.TrimConfig.Func()
 	}
 
-	return c.buildManager(logger, emit, splitFunc, trimFunc)
+	return c.buildManager(buildInfo, emit, splitFunc, trimFunc)
 }
 
 // BuildWithSplitFunc will build a file input operator with customized splitFunc function
@@ -114,10 +116,10 @@ func (c Config) BuildWithSplitFunc(logger *zap.SugaredLogger, emit emit.Callback
 	if err := c.validate(); err != nil {
 		return nil, err
 	}
-	return c.buildManager(logger, emit, splitFunc, c.TrimConfig.Func())
+	return c.buildManager(&operator.BuildInfoInternal{Logger: logger}, emit, splitFunc, c.TrimConfig.Func())
 }
 
-func (c Config) buildManager(logger *zap.SugaredLogger, emit emit.Callback, splitFunc bufio.SplitFunc, trimFunc trim.Func) (*Manager, error) {
+func (c Config) buildManager(buildInfo *operator.BuildInfoInternal, emit emit.Callback, splitFunc bufio.SplitFunc, trimFunc trim.Func) (*Manager, error) {
 	if emit == nil {
 		return nil, fmt.Errorf("must provide emit function")
 	}
@@ -143,6 +145,7 @@ func (c Config) buildManager(logger *zap.SugaredLogger, emit emit.Callback, spli
 			return nil, fmt.Errorf("failed to build header config: %w", err)
 		}
 	}
+	logger := buildInfo.Logger
 
 	fileMatcher, err := matcher.New(c.Criteria)
 	if err != nil {
@@ -176,6 +179,7 @@ func (c Config) buildManager(logger *zap.SugaredLogger, emit emit.Callback, spli
 		maxBatches:        c.MaxBatches,
 		previousPollFiles: make([]*reader.Reader, 0, c.MaxConcurrentFiles/2),
 		knownFiles:        []*reader.Metadata{},
+		monitorManager:  c.newMonitorManager(buildInfo),
 	}, nil
 }
 

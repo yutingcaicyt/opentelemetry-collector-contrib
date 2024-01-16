@@ -62,8 +62,8 @@ type Config struct {
 }
 
 // Build creates a new Transformer from a config
-func (c *Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
-	transformer, err := c.TransformerConfig.Build(logger)
+func (c *Config) Build(buildInfo *operator.BuildInfoInternal) (operator.Operator, error) {
+	transformer, err := c.TransformerConfig.Build(buildInfo.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build transformer config: %w", err)
 	}
@@ -125,7 +125,7 @@ func (c *Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 		combineField:      c.CombineField,
 		combineWith:       c.CombineWith,
 		forceFlushTimeout: c.ForceFlushTimeout,
-		ticker:            time.NewTicker(c.ForceFlushTimeout),
+		ticker:            time.NewTicker(c.ForceFlushTimeout * 1 / 5),
 		chClose:           make(chan struct{}),
 		sourceIdentifier:  c.SourceIdentifier,
 		maxLogSize:        int64(c.MaxLogSize),
@@ -183,7 +183,7 @@ func (r *Transformer) flushLoop() {
 				}
 			}
 			// check every 1/5 forceFlushTimeout
-			r.ticker.Reset(r.forceFlushTimeout / 5)
+			r.ticker.Reset(r.forceFlushTimeout * 1 / 5)
 			r.Unlock()
 		case <-r.chClose:
 			r.ticker.Stop()

@@ -184,3 +184,8 @@ ordering_criteria_top_n:
   type: mock
   ordering_criteria:
     top_n: 10
+monitor_config:
+  type: mock
+  monitor:
+    enabled: true
+    max_delay: 1s

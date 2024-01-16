@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/filetest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/fingerprint"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/testutil"
@@ -166,7 +167,7 @@ func BenchmarkFileInput(b *testing.B) {
 				received <- token
 				return nil
 			}
-			op, err := cfg.Build(testutil.Logger(b), callback)
+			op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(b)}, callback)
 			require.NoError(b, err)
 
 			// write half the lines before starting

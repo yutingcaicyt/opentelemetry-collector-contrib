@@ -426,6 +426,17 @@ func TestUnmarshal(t *testing.T) {
 					return newMockOperatorConfig(cfg)
 				}(),
 			},
+			{
+				Name: "monitor_config",
+				Expect: func() *mockOperatorConfig {
+					cfg := NewConfig()
+					cfg.Monitor = MonitorConfig{
+						Enabled:  true,
+						MaxDelay: 1000 * 1000 * 1000,
+					}
+					return newMockOperatorConfig(cfg)
+				}(),
+			},
 		},
 	}.Run(t)
 }
@@ -627,7 +638,7 @@ func TestBuild(t *testing.T) {
 			cfg := basicConfig()
 			tc.modifyBaseConfig(cfg)
 
-			input, err := cfg.Build(testutil.Logger(t), emittest.Nop)
+			input, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)}, emittest.Nop)
 			tc.errorRequirement(t, err)
 			if err != nil {
 				return
@@ -793,7 +804,7 @@ func TestBuildWithHeader(t *testing.T) {
 			cfg := basicConfig()
 			tc.modifyBaseConfig(cfg)
 
-			input, err := cfg.Build(testutil.Logger(t), emittest.Nop)
+			input, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)}, emittest.Nop)
 			tc.errorRequirement(t, err)
 			if err != nil {
 				return

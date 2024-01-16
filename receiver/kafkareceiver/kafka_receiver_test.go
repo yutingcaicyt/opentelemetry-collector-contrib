@@ -6,6 +6,7 @@ package kafkareceiver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"

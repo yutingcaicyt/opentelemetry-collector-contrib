@@ -475,7 +475,7 @@ func TestTransformer(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			op, err := tc.config.Build(testutil.Logger(t))
+			op, err := tc.config.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 			require.NoError(t, err)
 			require.NoError(t, op.Start(testutil.NewUnscopedMockPersister()))
 			recombine := op.(*Transformer)
@@ -505,7 +505,7 @@ func TestTransformer(t *testing.T) {
 		cfg.CombineField = entry.NewBodyField()
 		cfg.IsFirstEntry = MatchAll
 		cfg.OutputIDs = []string{"fake"}
-		op, err := cfg.Build(testutil.Logger(t))
+		op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 		require.NoError(t, err)
 		recombine := op.(*Transformer)
 
@@ -584,7 +584,47 @@ func BenchmarkRecombineLimitTrigger(b *testing.B) {
 	cfg.IsFirstEntry = "body == 'start'"
 	cfg.MaxLogSize = 6
 	cfg.OutputIDs = []string{"fake"}
-	op, err := cfg.Build(testutil.Logger(b))
+	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(b)})
+	require.NoError(b, err)
+	recombine := op.(*Transformer)
+
+	fake := testutil.NewFakeOutput(b)
+	require.NoError(b, recombine.SetOutputs([]operator.Operator{fake}))
+	require.NoError(b, recombine.Start(nil))
+
+	go func() {
+		for {
+			<-fake.Received
+		}
+	}()
+
+	start := entry.New()
+	start.Timestamp = time.Now()
+	start.Body = "start"
+
+	next := entry.New()
+	next.Timestamp = time.Now()
+	next.Body = "next"
+
+	ctx := context.Background()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		require.NoError(b, recombine.Process(ctx, start))
+		require.NoError(b, recombine.Process(ctx, next))
+		require.NoError(b, recombine.Process(ctx, start))
+		require.NoError(b, recombine.Process(ctx, next))
+		recombine.flushUncombined(ctx)
+	}
+
+}
+
+func BenchmarkRecombineLimitTrigger(b *testing.B) {
+	cfg := NewConfig()
+	cfg.CombineField = entry.NewBodyField()
+	cfg.IsFirstEntry = "body == 'start'"
+	cfg.MaxLogSize = 6
+	cfg.OutputIDs = []string{"fake"}
+	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(b)})
 	require.NoError(b, err)
 	recombine := op.(*Transformer)
 
@@ -626,7 +666,7 @@ func TestTimeout(t *testing.T) {
 	cfg.IsFirstEntry = MatchAll
 	cfg.OutputIDs = []string{"fake"}
 	cfg.ForceFlushTimeout = 100 * time.Millisecond
-	op, err := cfg.Build(testutil.Logger(t))
+	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 	require.NoError(t, err)
 	recombine := op.(*Transformer)
 
@@ -669,7 +709,7 @@ func TestTimeoutWhenAggregationKeepHappen(t *testing.T) {
 	cfg.CombineWith = ""
 	cfg.OutputIDs = []string{"fake"}
 	cfg.ForceFlushTimeout = 100 * time.Millisecond
-	op, err := cfg.Build(testutil.Logger(t))
+	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 	require.NoError(t, err)
 	recombine := op.(*Transformer)
 
@@ -713,7 +753,7 @@ func TestSourceBatchDelete(t *testing.T) {
 	cfg.OutputIDs = []string{"fake"}
 	cfg.ForceFlushTimeout = 100 * time.Millisecond
 	cfg.MaxLogSize = 6
-	op, err := cfg.Build(testutil.Logger(t))
+	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(t)})
 	require.NoError(t, err)
 	recombine := op.(*Transformer)
 

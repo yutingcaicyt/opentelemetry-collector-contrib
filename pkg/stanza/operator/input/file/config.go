@@ -38,8 +38,8 @@ type Config struct {
 }
 
 // Build will build a file input operator from the supplied configuration
-func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
-	inputOperator, err := c.InputConfig.Build(logger)
+func (c Config) Build(buildInfo *operator.BuildInfoInternal) (operator.Operator, error) {
+	inputOperator, err := c.InputConfig.Build(buildInfo.Logger)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 		toBody:        toBody,
 	}
 
-	input.fileConsumer, err = c.Config.Build(logger, input.emit)
+	input.fileConsumer, err = c.Config.Build(buildInfo, input.emit)
 	if err != nil {
 		return nil, err
 	}

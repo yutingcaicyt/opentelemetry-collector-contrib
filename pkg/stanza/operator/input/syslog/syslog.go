@@ -45,7 +45,8 @@ type Config struct {
 	UDP                *udp.BaseConfig `mapstructure:"udp"`
 }
 
-func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
+func (c Config) Build(buildInfo *operator.BuildInfoInternal) (operator.Operator, error) {
+	logger := buildInfo.Logger
 	inputBase, err := c.InputConfig.Build(logger)
 	if err != nil {
 		return nil, err
@@ -55,7 +56,7 @@ func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 	syslogParserCfg.BaseConfig = c.BaseConfig
 	syslogParserCfg.SetID(inputBase.ID() + "_internal_parser")
 	syslogParserCfg.OutputIDs = c.OutputIDs
-	syslogParser, err := syslogParserCfg.Build(logger)
+	syslogParser, err := syslogParserCfg.Build(buildInfo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve syslog config: %w", err)
 	}
@@ -67,7 +68,7 @@ func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 			tcpInputCfg.SplitFuncBuilder = OctetSplitFuncBuilder
 		}
 
-		tcpInput, err := tcpInputCfg.Build(logger)
+		tcpInput, err := tcpInputCfg.Build(buildInfo)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve tcp config: %w", err)
 		}
@@ -94,7 +95,7 @@ func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
 			return nil, errors.New("octet_counting and non_transparent_framing is not compatible with UDP")
 		}
 
-		udpInput, err := udpInputCfg.Build(logger)
+		udpInput, err := udpInputCfg.Build(&operator.BuildInfoInternal{Logger: logger})
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve udp config: %w", err)
 		}

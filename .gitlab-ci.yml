@@ -1,0 +1,98 @@
+.consts:
+  - &gover "1.19"
+  - &modules |
+    exporter/fileexporter
+    exporter/kafkaexporter
+    extension/healthcheckextension
+    extension/pprofextension
+    extension/storage
+    internal/aws/ecsutil
+    internal/common
+    internal/coreinternal
+    internal/filter
+    internal/k8sconfig
+    internal/metadataproviders
+    internal/sharedcomponent
+    pkg/ottl
+    pkg/pdatatest
+    pkg/pdatautil
+    pkg/stanza
+    pkg/translator/jaeger
+    pkg/translator/zipkin
+    processor/attributesprocessor
+    processor/k8sattributesprocessor
+    processor/resourcedetectionprocessor
+    processor/resourceprocessor
+    processor/transformprocessor
+    receiver/filelogreceiver
+    receiver/kafkareceiver
+    receiver/tcplogreceiver
+    receiver/udplogreceiver
+    receiver/skywalkingreceiver
+    .
+
+.scripts:
+  # Setup environment. Only cache is included now.
+  - &setup |
+    [[ -d ci-cache/gomodcache ]] && mkdir -p $(go env GOMODCACHE) && mv -T ci-cache/gomodcache $(go env GOMODCACHE)
+    [[ -d ci-cache/tools ]] && mv -T ci-cache/tools .tools
+    rm -rf ci-cache
+
+  # Move caches to ci-cache as GitLab CI/CD only allows caching files in the project workspace.
+  - &precache |
+    mkdir -p ci-cache
+    [[ -d $(go env GOMODCACHE) ]] && mv -T $(go env GOMODCACHE) ci-cache/gomodcache
+    [[ -d .tools ]] && mv -T .tools ci-cache/tools
+
+variables:
+  GOPROXY: https://goproxy.cn, direct
+  GOVERSION: *gover
+  MODULES: *modules
+
+default:
+  cache: &cache
+    key:
+      files:
+        - go.sum
+    paths:
+      - $CI_PROJECT_DIR/ci-cache
+    policy: pull
+
+image: golang:$GOVERSION
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == 'merge_request_event'
+
+stages:
+  - prepare
+  - check
+
+prepare:
+  stage: prepare
+  cache:
+    <<: *cache
+    policy: pull-push
+  script:
+    - *setup
+    - make -j2 gomoddownload
+    - make install-tools
+    - *precache
+
+lint:
+  stage: check
+  script:
+    - *setup
+    - |
+      for mod in $MODULES; do
+        make -C $mod -j2 lint
+      done
+
+unittest:
+  stage: check
+  script:
+    - *setup
+    - |
+      for mod in $MODULES; do
+          make -C $mod -j2 test
+      done

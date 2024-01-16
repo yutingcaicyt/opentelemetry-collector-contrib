@@ -1120,6 +1120,8 @@ replace github.com/googleapis/gnostic v0.5.6 => github.com/googleapis/gnostic v0
 // see https://github.com/open-telemetry/opentelemetry-collector-contrib/pull/12322#issuecomment-1185029670
 replace github.com/docker/go-connections v0.4.1-0.20210727194412-58542c764a11 => github.com/docker/go-connections v0.4.0
 
+replace github.com/prometheus/prometheus => gitlab-ee.zhenguanyu.com/data-ingestion/prometheus v0.43.1-kanyun-tag
+
 retract (
 	v0.76.2
 	v0.76.1

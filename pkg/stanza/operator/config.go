@@ -8,12 +8,19 @@ import (
 	"fmt"
 
 	"go.opentelemetry.io/collector/confmap"
+	rcvr "go.opentelemetry.io/collector/receiver"
 	"go.uber.org/zap"
 )
 
 // Config is the configuration of an operator
 type Config struct {
 	Builder
+}
+
+type BuildInfoInternal struct {
+	Logger           *zap.SugaredLogger
+	CreateSettings   *rcvr.CreateSettings
+	TelemetryUseOtel bool
 }
 
 // NewConfig wraps the builder interface in a concrete struct
@@ -25,7 +32,9 @@ func NewConfig(b Builder) Config {
 type Builder interface {
 	ID() string
 	Type() string
-	Build(*zap.SugaredLogger) (Operator, error)
+	// telemetrySettings and component.ID contains the info that telemetry needs
+	// useOtel controls whether the collector uses open telemetrySettings for internal metrics
+	Build(buildInfo *BuildInfoInternal) (Operator, error)
 	SetID(string)
 }
 

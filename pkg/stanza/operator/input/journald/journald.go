@@ -67,7 +67,8 @@ type Config struct {
 type MatchConfig map[string]string
 
 // Build will build a journald input operator from the supplied configuration
-func (c Config) Build(logger *zap.SugaredLogger) (operator.Operator, error) {
+func (c Config) Build(buildInfo *operator.BuildInfoInternal) (operator.Operator, error) {
+	logger := buildInfo.Logger
 	inputOperator, err := c.InputConfig.Build(logger)
 	if err != nil {
 		return nil, err

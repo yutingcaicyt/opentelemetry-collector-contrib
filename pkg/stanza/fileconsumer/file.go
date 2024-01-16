@@ -41,6 +41,8 @@ type Manager struct {
 	// It is used to regulate the size of knownFiles. The goal is to allow knownFiles
 	// to contain checkpoints from a few previous poll cycles, but not grow unbounded.
 	movingAverageMatches int
+
+	monitorManager *MonitorManager
 }
 
 func (m *Manager) Start(persister operator.Persister) error {
@@ -91,6 +93,7 @@ func (m *Manager) Stop() error {
 	}
 	m.wg.Wait()
 	m.closePreviousFiles()
+	m.monitorManager = nil
 	if m.persister != nil {
 		if err := checkpoint.Save(context.Background(), m.persister, m.knownFiles); err != nil {
 			m.Errorw("save offsets", zap.Error(err))
@@ -122,6 +125,7 @@ func (m *Manager) startPoller(ctx context.Context) {
 
 // poll checks all the watched paths for new entries
 func (m *Manager) poll(ctx context.Context) {
+	var pollStartTime = time.Now()
 	// Used to keep track of the number of batches processed in this poll cycle
 	batchesProcessed := 0
 
@@ -133,6 +137,10 @@ func (m *Manager) poll(ctx context.Context) {
 		m.movingAverageMatches = (m.movingAverageMatches*3 + len(matches)) / 4
 	}
 	m.Debugf("matched files", zap.Strings("paths", matches))
+
+	// Before consuming files, start the monitor
+	m.monitorStart(ctx, pollStartTime, matches)
+
 
 	for len(matches) > m.maxBatchFiles {
 		m.consume(ctx, matches[:m.maxBatchFiles])
@@ -186,6 +194,8 @@ func (m *Manager) consume(ctx context.Context, paths []string) {
 func (m *Manager) makeFingerprint(path string) (*fingerprint.Fingerprint, *os.File) {
 	file, err := os.Open(path) // #nosec - operator must read in files defined by user
 	if err != nil {
+		// if the file can't be opened, it does not need to be MonitorStart
+		m.cancelMonitor(path)
 		m.Errorw("Failed to open file", zap.Error(err))
 		return nil, nil
 	}
@@ -199,6 +209,8 @@ func (m *Manager) makeFingerprint(path string) (*fingerprint.Fingerprint, *os.Fi
 	}
 
 	if len(fp.FirstBytes) == 0 {
+		// if fp of the file is empty, it does not need to be read and monitor
+		m.cancelMonitor(file.Name())
 		// Empty file, don't read it until we can compare its fingerprint
 		if err = file.Close(); err != nil {
 			m.Debugw("problem closing file", zap.Error(err))
@@ -235,6 +247,15 @@ OUTER:
 		if err != nil {
 			m.Errorw("Failed to create reader", zap.Error(err))
 			continue
+		}
+
+		if m.monitorManager != nil {
+			r.readerDelayCheck = ReaderDelayCheck{
+				startPollTime:    m.monitorManager.curPollStartTime,
+				fileMissCheckMap: m.monitorManager.fileMissCheckMap,
+				telemetry:        m.monitorManager.telemetry,
+				maxDelay:         m.monitorManager.maxDelay,
+			}
 		}
 
 		readers = append(readers, r)
