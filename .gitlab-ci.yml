@@ -1,5 +1,5 @@
 .consts:
-  - &gover "1.19"
+  - &gover "1.20"
   - &modules |
     exporter/fileexporter
     exporter/kafkaexporter

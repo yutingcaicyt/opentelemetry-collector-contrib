@@ -6,11 +6,19 @@ package reader
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configtelemetry"
+	rcvr "go.opentelemetry.io/collector/receiver"
+	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/filetest"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/metric"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 )
 
 func TestFileReader_FingerprintUpdated(t *testing.T) {
@@ -179,4 +187,47 @@ func TestFingerprintChangeSize(t *testing.T) {
 			require.Equal(t, fileContent[:expectedFP], reader.Fingerprint.FirstBytes)
 		})
 	}
+}
+
+func TestReadDelayRecordMetric(t *testing.T) {
+	metric.TelemetryTest(t, testReadDelayRecordMetric)
+}
+
+func testReadDelayRecordMetric(t *testing.T, tel metric.TestTelemetry, useOtel bool) {
+	tempDir := t.TempDir()
+	temp := filetest.OpenTemp(t, tempDir)
+
+	buildInfo := &operator.BuildInfoInternal{CreateSettings: &rcvr.CreateSettings{
+		ID: component.NewID("filelog"),
+		TelemetrySettings: component.TelemetrySettings{
+			MeterProvider: tel.MeterProvider,
+			MetricsLevel:  configtelemetry.LevelDetailed,
+		},
+	},
+		TelemetryUseOtel: useOtel,
+	}
+	telemetry, err := metric.NewFileConsumerTelemetry(buildInfo.CreateSettings, buildInfo.TelemetryUseOtel)
+	require.NoError(t, err)
+	r := Reader{
+		logger: zap.NewNop().Sugar(),
+		file:   temp,
+		Metadata: &Metadata{
+			Offset: 2,
+		},
+		ReaderDelayCheck: DelayCheck{
+			Telemetry:        telemetry,
+			FileMissCheckMap: &sync.Map{},
+			MaxDelay:         1000,
+		},
+	}
+
+	r.delayCheck(2, time.Now().Truncate(time.Millisecond))
+	tel.AssertMetrics(t, metric.ExpectedMetricsValue{
+		Count: 1,
+	})
+
+	r.delayCheck(2, time.Now().Truncate(time.Millisecond))
+	tel.AssertMetrics(t, metric.ExpectedMetricsValue{
+		Count: 2,
+	})
 }

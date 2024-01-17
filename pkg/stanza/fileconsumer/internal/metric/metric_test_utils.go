@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package fileconsumer // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer"
+package metric
 
 import (
 	"context"
@@ -19,50 +19,39 @@ import (
 	"go.opencensus.io/stats/view"
 	otelprom "go.opentelemetry.io/otel/exporters/prometheus"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/aggregation"
 	"go.opentelemetry.io/otel/sdk/resource"
 )
 
-func TestFileLogReceiverMetrics(t *testing.T) {
-	viewNames := []string{
-		"file_read_delay",
-	}
-	views := metricViews()
-	for i, viewName := range viewNames {
-		assert.Equal(t, "receiver_filelog_"+viewName, views[i].Name)
-	}
-}
-
-type testTelemetry struct {
+type TestTelemetry struct {
 	meter         view.Meter
 	promHandler   http.Handler
 	useOtel       bool
-	meterProvider *sdkmetric.MeterProvider
+	MeterProvider *sdkmetric.MeterProvider
 }
 
-type expectedMetricsValue struct {
+type ExpectedMetricsValue struct {
 	// receiver_filelog_file_read_delay
-	fileReadDelaySum int64
-	count            int64
+	FileReadDelaySum int64
+	Count            int64
 }
 
-func telemetryTest(t *testing.T, testFunc func(t *testing.T, tel testTelemetry, useOtel bool)) {
+func TelemetryTest(t *testing.T, testFunc func(t *testing.T, tel TestTelemetry, useOtel bool)) {
 	t.Run("WithOC", func(t *testing.T) {
-		testFunc(t, setupTelemetry(t, false), false)
+		testFunc(t, SetupTelemetry(t, false), false)
 	})
 
 	t.Run("WithOTel", func(t *testing.T) {
-		testFunc(t, setupTelemetry(t, true), true)
+		testFunc(t, SetupTelemetry(t, true), true)
 	})
 }
 
-func setupTelemetry(t *testing.T, useOtel bool) testTelemetry {
+func SetupTelemetry(t *testing.T, useOtel bool) TestTelemetry {
 	// Unregister the views first since they are registered by the init, this way we reset them.
 	views := metricViews()
 	view.Unregister(views...)
 	require.NoError(t, view.Register(views...))
 
-	telemetry := testTelemetry{
+	telemetry := TestTelemetry{
 		meter:   view.NewMeter(),
 		useOtel: useOtel,
 	}
@@ -72,7 +61,7 @@ func setupTelemetry(t *testing.T, useOtel bool) testTelemetry {
 		exporter, err := otelprom.New(otelprom.WithRegisterer(promReg), otelprom.WithoutUnits(), otelprom.WithoutScopeInfo())
 		require.NoError(t, err)
 
-		telemetry.meterProvider = sdkmetric.NewMeterProvider(
+		telemetry.MeterProvider = sdkmetric.NewMeterProvider(
 			sdkmetric.WithResource(resource.Empty()),
 			sdkmetric.WithReader(exporter),
 			sdkmetric.WithView(filelogViews()...),
@@ -80,7 +69,7 @@ func setupTelemetry(t *testing.T, useOtel bool) testTelemetry {
 
 		telemetry.promHandler = promhttp.HandlerFor(promReg, promhttp.HandlerOpts{})
 
-		t.Cleanup(func() { assert.NoError(t, telemetry.meterProvider.Shutdown(context.Background())) })
+		t.Cleanup(func() { assert.NoError(t, telemetry.MeterProvider.Shutdown(context.Background())) })
 	} else {
 		promReg := prometheus.NewRegistry()
 
@@ -100,7 +89,7 @@ func filelogViews() []sdkmetric.View {
 	return []sdkmetric.View{
 		sdkmetric.NewView(
 			sdkmetric.Instrument{Name: BuildMetricName("filelog", "file_read_delay")},
-			sdkmetric.Stream{Aggregation: aggregation.ExplicitBucketHistogram{
+			sdkmetric.Stream{Aggregation: sdkmetric.AggregationExplicitBucketHistogram{
 				Boundaries: []float64{10, 25, 50, 75, 100, 250, 500, 750, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000, 30000, 50000,
 					100_000, 200_000, 300_000, 400_000, 500_000, 600_000, 700_000, 800_000, 900_000,
 					1000_000, 2000_000, 3000_000, 4000_000, 5000_000, 6000_000, 7000_000, 8000_000, 9000_000},
@@ -109,7 +98,7 @@ func filelogViews() []sdkmetric.View {
 	}
 }
 
-func (tt *testTelemetry) assertMetrics(t *testing.T, expected expectedMetricsValue) {
+func (tt *TestTelemetry) AssertMetrics(t *testing.T, expected ExpectedMetricsValue) {
 	for _, v := range metricViews() {
 		// Flush the view data.
 		_, _ = view.RetrieveData(v.Name)
@@ -129,7 +118,7 @@ func (tt *testTelemetry) assertMetrics(t *testing.T, expected expectedMetricsVal
 
 	metricFamily, ok := metrics[name]
 
-	if expected.count > 0 || expected.fileReadDelaySum > 0 {
+	if expected.Count > 0 || expected.FileReadDelaySum > 0 {
 		require.True(t, ok)
 		require.Equal(t, io_prometheus_client.MetricType_HISTOGRAM, metricFamily.GetType())
 
@@ -140,12 +129,12 @@ func (tt *testTelemetry) assertMetrics(t *testing.T, expected expectedMetricsVal
 		require.False(t, ok)
 	}
 
-	if expected.fileReadDelaySum > 0 {
-		require.Equal(t, float64(expected.fileReadDelaySum), metricFamily.Metric[0].GetHistogram().GetSampleSum())
+	if expected.FileReadDelaySum > 0 {
+		require.Equal(t, float64(expected.FileReadDelaySum), metricFamily.Metric[0].GetHistogram().GetSampleSum())
 	}
 
-	if expected.count > 0 {
-		require.Equal(t, uint64(expected.count), metricFamily.Metric[0].GetHistogram().GetSampleCount())
+	if expected.Count > 0 {
+		require.Equal(t, uint64(expected.Count), metricFamily.Metric[0].GetHistogram().GetSampleCount())
 	}
 
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/attrs"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/emittest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/filetest"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/metric"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/reader"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/matcher"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator/helper"
@@ -1330,7 +1331,7 @@ func TestFileMissCheckWillClearOutdatedPathFromMap(t *testing.T) {
 	cfg.IncludeFileNameResolved = false
 	cfg.IncludeFilePathResolved = false
 	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
-	m, _ := buildTestManager(t, cfg)
+	m, _ := testManager(t, cfg)
 
 	// outdated filePath will be deleted from fileMissCheckMap
 	for i := 0; i < 5; i++ {
@@ -1340,8 +1341,8 @@ func TestFileMissCheckWillClearOutdatedPathFromMap(t *testing.T) {
 	var tmpMap = make(map[int]string)
 
 	for i := 0; i < 5; i++ {
-		temp := openTemp(t, tempDir)
-		writeString(t, temp, "testlog\n")
+		temp := filetest.OpenTemp(t, tempDir)
+		filetest.WriteString(t, temp, "testlog\n")
 		m.monitorManager.fileMissCheckMap.Store(temp.Name(), &missCheckInfo{missedTimes: 0})
 		tmpMap[i] = temp.Name()
 	}
@@ -1368,11 +1369,11 @@ func TestFileMissCheckWillBuildMapEachTime(t *testing.T) {
 	cfg.IncludeFileNameResolved = false
 	cfg.IncludeFilePathResolved = false
 	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
-	m, _ := buildTestManager(t, cfg)
+	m, _ := testManager(t, cfg)
 
-	temp := openTemp(t, tempDir)
-	writeString(t, temp, "testlog\n")
-	matchFiles := m.finder.FindFiles()
+	temp := filetest.OpenTemp(t, tempDir)
+	filetest.WriteString(t, temp, "testlog\n")
+	matchFiles, _ := m.fileMatcher.MatchFiles()
 
 	require.Equal(t, 1, len(matchFiles))
 	require.Equal(t, temp.Name(), matchFiles[0])
@@ -1394,11 +1395,11 @@ func TestFileMissCheckWillAddMissInfoWhenFileMissed(t *testing.T) {
 	cfg.IncludeFileNameResolved = false
 	cfg.IncludeFilePathResolved = false
 	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
-	m, _ := buildTestManagerWithOptionsAndTelemetry(t, cfg, false, setupTelemetry(t, false))
+	m, _ := buildTestManagerWithOptionsAndTelemetry(t, cfg, false, metric.SetupTelemetry(t, false))
 
-	temp := openTemp(t, tempDir)
-	writeString(t, temp, "testlog\n")
-	matchFiles := m.finder.FindFiles()
+	temp := filetest.OpenTemp(t, tempDir)
+	filetest.WriteString(t, temp, "testlog\n")
+	matchFiles, _ := m.fileMatcher.MatchFiles()
 
 	require.Equal(t, 1, len(matchFiles))
 
@@ -1415,10 +1416,10 @@ func TestFileMissCheckWillAddMissInfoWhenFileMissed(t *testing.T) {
 }
 
 func TestFileReadDelayMetric(t *testing.T) {
-	telemetryTest(t, testFileReadDelay)
+	metric.TelemetryTest(t, testFileReadDelay)
 }
 
-func testFileReadDelay(t *testing.T, tel testTelemetry, useOtel bool) {
+func testFileReadDelay(t *testing.T, tel metric.TestTelemetry, useOtel bool) {
 	tempDir := t.TempDir()
 	cfg := NewConfig().includeDir(tempDir)
 	cfg.IncludeFileName = true
@@ -1427,33 +1428,29 @@ func testFileReadDelay(t *testing.T, tel testTelemetry, useOtel bool) {
 	cfg.IncludeFilePathResolved = false
 	cfg.StartAt = "beginning"
 	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
-	m, emit := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
+	m, sink := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
 	m.persister = testutil.NewMockPersister("test")
 
-	temp := openTemp(t, tempDir)
-	writeString(t, temp, "testlog\n")
+	temp := filetest.OpenTemp(t, tempDir)
+	filetest.WriteString(t, temp, "testlog\n")
+	matchFiles, _ := m.fileMatcher.MatchFiles()
 
-	matchFiles := m.finder.FindFiles()
 	require.Equal(t, 1, len(matchFiles))
 
 	m.poll(context.Background())
 
-	select {
-	case call := <-emit:
-		require.Equal(t, []byte("testlog"), call.token)
-	case <-time.After(3 * time.Second):
-		require.FailNow(t, "Timed out waiting for token")
-	}
-	tel.assertMetrics(t, expectedMetricsValue{
-		count: 1,
+	sink.ExpectToken(t, []byte("testlog"))
+
+	tel.AssertMetrics(t, metric.ExpectedMetricsValue{
+		Count: 1,
 	})
 }
 
 func TestRecordMetric(t *testing.T) {
-	telemetryTest(t, testRecordMetric)
+	metric.TelemetryTest(t, testRecordMetric)
 }
 
-func testRecordMetric(t *testing.T, tel testTelemetry, useOtel bool) {
+func testRecordMetric(t *testing.T, tel metric.TestTelemetry, useOtel bool) {
 	cfg := NewConfig().includeDir("test")
 	cfg.IncludeFileName = true
 	cfg.IncludeFilePath = true
@@ -1461,20 +1458,20 @@ func testRecordMetric(t *testing.T, tel testTelemetry, useOtel bool) {
 	cfg.IncludeFilePathResolved = false
 	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
 	m, _ := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
-	m.monitorManager.telemetry.record(100)
-	m.monitorManager.telemetry.record(200)
+	m.monitorManager.telemetry.Record(100)
+	m.monitorManager.telemetry.Record(200)
 
-	tel.assertMetrics(t, expectedMetricsValue{
-		fileReadDelaySum: 300,
-		count:            2,
+	tel.AssertMetrics(t, metric.ExpectedMetricsValue{
+		FileReadDelaySum: 300,
+		Count:            2,
 	})
 }
 
 func TestFileMissRecordMetric(t *testing.T) {
-	telemetryTest(t, testFileMissRecordMetric)
+	metric.TelemetryTest(t, testFileMissRecordMetric)
 }
 
-func testFileMissRecordMetric(t *testing.T, tel testTelemetry, useOtel bool) {
+func testFileMissRecordMetric(t *testing.T, tel metric.TestTelemetry, useOtel bool) {
 	tempDir := t.TempDir()
 	cfg := NewConfig().includeDir(tempDir)
 	cfg.IncludeFileName = true
@@ -1484,30 +1481,30 @@ func testFileMissRecordMetric(t *testing.T, tel testTelemetry, useOtel bool) {
 	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
 	m, _ := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
 	m.persister = testutil.NewMockPersister("test")
-	temp := openTemp(t, tempDir)
+	temp := filetest.OpenTemp(t, tempDir)
 
 	m.monitorManager.fileMissCheckMap.Store(temp.Name(), &missCheckInfo{missedTimes: 3})
 
 	m.fileMissCheck()
 
-	tel.assertMetrics(t, expectedMetricsValue{
-		fileReadDelaySum: m.monitorManager.checkInterval.Milliseconds() * 3,
-		count:            1,
+	tel.AssertMetrics(t, metric.ExpectedMetricsValue{
+		FileReadDelaySum: m.monitorManager.checkInterval.Milliseconds() * 3,
+		Count:            1,
 	})
 
 	m.fileMissCheck()
-	tel.assertMetrics(t, expectedMetricsValue{
-		fileReadDelaySum: m.monitorManager.checkInterval.Milliseconds() * (4 + 3),
-		count:            2,
+	tel.AssertMetrics(t, metric.ExpectedMetricsValue{
+		FileReadDelaySum: m.monitorManager.checkInterval.Milliseconds() * (4 + 3),
+		Count:            2,
 	})
 
 }
 
 func TestMissedFileInfoWillBeDeletedWhenItStartsToRead(t *testing.T) {
-	telemetryTest(t, testMissedFileInfoWillBeDeletedWhenItStartsToRead)
+	metric.TelemetryTest(t, testMissedFileInfoWillBeDeletedWhenItStartsToRead)
 }
 
-func testMissedFileInfoWillBeDeletedWhenItStartsToRead(t *testing.T, tel testTelemetry, useOtel bool) {
+func testMissedFileInfoWillBeDeletedWhenItStartsToRead(t *testing.T, tel metric.TestTelemetry, useOtel bool) {
 	tempDir := t.TempDir()
 	cfg := NewConfig().includeDir(tempDir)
 	cfg.IncludeFileName = true
@@ -1516,14 +1513,14 @@ func testMissedFileInfoWillBeDeletedWhenItStartsToRead(t *testing.T, tel testTel
 	cfg.IncludeFilePathResolved = false
 	cfg.StartAt = "beginning"
 	cfg.Monitor = MonitorConfig{Enabled: true, MaxDelay: defaultMonitorMaxDelay}
-	m, emit := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
+	m, sink := buildTestManagerWithOptionsAndTelemetry(t, cfg, useOtel, tel)
 	m.persister = testutil.NewMockPersister("test")
 
-	temp := openTemp(t, tempDir)
-	writeString(t, temp, "testlog\n")
+	temp := filetest.OpenTemp(t, tempDir)
+	filetest.WriteString(t, temp, "testlog\n")
 	m.monitorManager.fileMissCheckMap.Store(temp.Name(), &missCheckInfo{missedTimes: 1})
 	m.poll(context.Background())
-	waitForToken(t, emit, []byte("testlog"))
+	sink.ExpectToken(t, []byte("testlog"))
 	_, ok := m.monitorManager.fileMissCheckMap.Load(temp.Name())
 	require.Equal(t, false, ok)
 }

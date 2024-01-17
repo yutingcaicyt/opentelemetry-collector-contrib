@@ -1,7 +1,7 @@
 // Copyright The OpenTelemetry Authors
 // SPDX-License-Identifier: Apache-2.0
 
-package fileconsumer // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer"
+package metric // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer"
 
 import (
 	"context"
@@ -13,7 +13,6 @@ import (
 	rcvr "go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/metric/instrument"
 )
 
 const (
@@ -55,7 +54,7 @@ func metricViews() []*view.View {
 	}
 }
 
-type fileConsumerTelemetry struct {
+type FileConsumerTelemetry struct {
 	level    configtelemetry.Level
 	detailed bool
 	useOtel  bool
@@ -63,16 +62,16 @@ type fileConsumerTelemetry struct {
 	exportCtx context.Context
 
 	receiverAttr  []attribute.KeyValue
-	readFileDelay instrument.Int64Histogram
+	readFileDelay metric.Int64Histogram
 }
 
-func newFileConsumerTelemetry(set *rcvr.CreateSettings, useOtel bool) (*fileConsumerTelemetry, error) {
+func NewFileConsumerTelemetry(set *rcvr.CreateSettings, useOtel bool) (*FileConsumerTelemetry, error) {
 	exportCtx, err := tag.New(context.Background(), tag.Insert(receiverTagKey, set.ID.String()))
 	if err != nil {
 		return nil, err
 	}
 
-	bpt := &fileConsumerTelemetry{
+	bpt := &FileConsumerTelemetry{
 		useOtel:      useOtel,
 		receiverAttr: []attribute.KeyValue{attribute.String(receiverKey, set.ID.String())},
 		exportCtx:    exportCtx,
@@ -87,7 +86,7 @@ func newFileConsumerTelemetry(set *rcvr.CreateSettings, useOtel bool) (*fileCons
 	return bpt, nil
 }
 
-func (bpt *fileConsumerTelemetry) createOtelMetrics(mp metric.MeterProvider) error {
+func (bpt *FileConsumerTelemetry) createOtelMetrics(mp metric.MeterProvider) error {
 	if !bpt.useOtel {
 		return nil
 	}
@@ -96,8 +95,8 @@ func (bpt *fileConsumerTelemetry) createOtelMetrics(mp metric.MeterProvider) err
 	meter := mp.Meter(scopeName)
 	bpt.readFileDelay, err = meter.Int64Histogram(
 		BuildMetricName(typeStr, statFileReadDelay.Name()),
-		instrument.WithDescription(statFileReadDelay.Description()),
-		instrument.WithUnit("ms"),
+		metric.WithDescription(statFileReadDelay.Description()),
+		metric.WithUnit("ms"),
 	)
 	if err != nil {
 		return err
@@ -105,7 +104,7 @@ func (bpt *fileConsumerTelemetry) createOtelMetrics(mp metric.MeterProvider) err
 	return nil
 }
 
-func (bpt *fileConsumerTelemetry) record(delay int64) {
+func (bpt *FileConsumerTelemetry) Record(delay int64) {
 	if bpt.useOtel {
 		bpt.recordWithOtel(delay)
 	} else {
@@ -113,14 +112,14 @@ func (bpt *fileConsumerTelemetry) record(delay int64) {
 	}
 }
 
-func (bpt *fileConsumerTelemetry) recordWithOC(delay int64) {
+func (bpt *FileConsumerTelemetry) recordWithOC(delay int64) {
 	if bpt.detailed {
 		stats.Record(bpt.exportCtx, statFileReadDelay.M(delay))
 	}
 }
 
-func (bpt *fileConsumerTelemetry) recordWithOtel(delay int64) {
+func (bpt *FileConsumerTelemetry) recordWithOtel(delay int64) {
 	if bpt.detailed {
-		bpt.readFileDelay.Record(bpt.exportCtx, delay, bpt.receiverAttr...)
+		bpt.readFileDelay.Record(bpt.exportCtx, delay, metric.WithAttributes(bpt.receiverAttr...))
 	}
 }

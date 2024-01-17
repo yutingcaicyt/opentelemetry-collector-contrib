@@ -6,7 +6,6 @@ package kafkareceiver // import "github.com/open-telemetry/opentelemetry-collect
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/IBM/sarama"
@@ -288,10 +287,6 @@ func newLogsReceiver(config Config, set receiver.CreateSettings, unmarshaler Log
 	if unmarshaler == nil {
 		return nil, errUnrecognizedEncoding
 	}
-	unmarshaler, err := getLogsUnmarshaler(config.Encoding, unmarshalers)
-	if err != nil {
-		return nil, err
-	}
 	c := sarama.NewConfig()
 	c.ClientID = config.ClientID
 	c.Metadata.Full = config.Metadata.Full
@@ -306,15 +301,13 @@ func newLogsReceiver(config Config, set receiver.CreateSettings, unmarshaler Log
 	}
 	if config.ProtocolVersion != "" {
 		var version sarama.KafkaVersion
-		version, err = sarama.ParseKafkaVersion(config.ProtocolVersion)
-		var version sarama.KafkaVersion
 		version, err := sarama.ParseKafkaVersion(config.ProtocolVersion)
 		if err != nil {
 			return nil, err
 		}
 		c.Version = version
 	}
-	if err = kafka.ConfigureAuthentication(config.Authentication, c); err != nil {
+	if err := kafka.ConfigureAuthentication(config.Authentication, c); err != nil {
 		return nil, err
 	}
 	client, err := sarama.NewConsumerGroup(config.Brokers, config.GroupID, c)
@@ -332,33 +325,6 @@ func newLogsReceiver(config Config, set receiver.CreateSettings, unmarshaler Log
 		headerExtraction:  config.HeaderExtraction.ExtractHeaders,
 		headers:           config.HeaderExtraction.Headers,
 	}, nil
-}
-
-func getLogsUnmarshaler(encoding string, unmarshalers map[string]LogsUnmarshaler) (LogsUnmarshaler, error) {
-	var enc string
-	unmarshaler, ok := unmarshalers[encoding]
-	if !ok {
-		split := strings.SplitN(encoding, "_", 2)
-		prefix := split[0]
-		if len(split) > 1 {
-			enc = split[1]
-		}
-		unmarshaler, ok = unmarshalers[prefix].(LogsUnmarshalerWithEnc)
-		if !ok {
-			return nil, errUnrecognizedEncoding
-		}
-	}
-
-	if unmarshalerWithEnc, ok := unmarshaler.(LogsUnmarshalerWithEnc); ok {
-		// This should be called even when enc is an empty string to initialize the encoding.
-		unmarshaler, err := unmarshalerWithEnc.WithEnc(enc)
-		if err != nil {
-			return nil, err
-		}
-		return unmarshaler, nil
-	}
-
-	return unmarshaler, nil
 }
 
 func (c *kafkaLogsConsumer) Start(_ context.Context, host component.Host) error {

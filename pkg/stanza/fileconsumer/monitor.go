@@ -1,17 +1,7 @@
 // Copyright The OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-package fileconsumer // import "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer"
+// SPDX-License-Identifier: Apache-2.0
+
+package fileconsumer
 
 import (
 	"context"
@@ -19,8 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/metric"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 )
 
@@ -29,7 +18,7 @@ const (
 	defaultMonitorMaxDelay = 1000 * 1000 * 1000
 )
 
-// Monitor does two things:
+// MonitorManager manages two things:
 // 1.Check whether some files have not been read within a certain time interval
 // 2.Check the read delay when a reader reads the file
 type MonitorManager struct {
@@ -39,7 +28,7 @@ type MonitorManager struct {
 	checkStart       sync.Once
 	checkInterval    time.Duration
 	maxDelay         time.Duration
-	telemetry        *fileConsumerTelemetry
+	telemetry        *metric.FileConsumerTelemetry
 	// This channel is for reusing match files found in a poll
 	matchFilesChan chan []string
 }
@@ -51,11 +40,11 @@ type MonitorConfig struct {
 	MaxDelay time.Duration `mapstructure:"max_delay,omitempty"`
 }
 
-func (c *Config) telemetryInitialization(buildInfo *operator.BuildInfoInternal) *fileConsumerTelemetry {
+func (c *Config) telemetryInitialization(buildInfo *operator.BuildInfoInternal) *metric.FileConsumerTelemetry {
 	if buildInfo.CreateSettings == nil {
 		return nil
 	}
-	telemetry, err := newFileConsumerTelemetry(buildInfo.CreateSettings, buildInfo.TelemetryUseOtel)
+	telemetry, err := metric.NewFileConsumerTelemetry(buildInfo.CreateSettings, buildInfo.TelemetryUseOtel)
 	if err != nil {
 		_ = fmt.Errorf("failed to create fileConsumer telemetry: %w", err)
 	}
@@ -92,7 +81,7 @@ func (m *Manager) fileMissCheck() {
 	for _, v := range matches {
 		tmpMap[v] = struct{}{}
 	}
-	m.monitorManager.fileMissCheckMap.Range(func(key, value interface{}) bool {
+	m.monitorManager.fileMissCheckMap.Range(func(key, value any) bool {
 		if _, ok := tmpMap[key.(string)]; !ok {
 			m.monitorManager.fileMissCheckMap.Delete(key)
 			return true
@@ -103,7 +92,7 @@ func (m *Manager) fileMissCheck() {
 			return true
 		}
 		delay := m.monitorManager.checkInterval.Milliseconds() * int64(checkInfo.missedTimes)
-		m.monitorManager.telemetry.record(delay)
+		m.monitorManager.telemetry.Record(delay)
 		// If delay reaches the value of MaxDelay, recording a log
 		if delay >= m.monitorManager.maxDelay.Milliseconds() {
 			m.Warnw("file "+key.(string)+" missed or read delay is high",
@@ -152,7 +141,10 @@ func (m *Manager) getMatchFiles() []string {
 	select {
 	case matches = <-m.monitorManager.matchFilesChan:
 	default:
-		matches = m.finder.FindFiles()
+		var err error
+		if matches, err = m.fileMatcher.MatchFiles(); err != nil {
+			m.Warnf("finding files: %v", err)
+		}
 	}
 	return matches
 }
@@ -173,53 +165,4 @@ func (m *Manager) cancelMonitor(filePath string) {
 		return
 	}
 	m.monitorManager.fileMissCheckMap.Delete(filePath)
-}
-
-type ReaderDelayCheck struct {
-	startPollTime    time.Time
-	fileMissCheckMap *sync.Map
-	telemetry        *fileConsumerTelemetry
-	maxDelay         time.Duration
-}
-
-func (r *Reader) delayCheck(preFileSize int64, preTime time.Time) (int64, time.Time) {
-	// the offset reaches the file size recorded before, record the delay
-	if r.readerDelayCheck.telemetry == nil {
-		return preFileSize, preTime
-	}
-	var curTime = time.Now()
-	r.readerDelayCheck.fileMissCheckMap.Delete(r.file.Name())
-	if preFileSize >= 0 && r.Offset >= preFileSize {
-		delay := curTime.Sub(preTime).Milliseconds()
-		if r.readerDelayCheck.maxDelay.Milliseconds() <= delay {
-			r.Warnw("file "+r.file.Name()+"read delay is high",
-				"delayTime(ms)", delay)
-		}
-		r.readerDelayCheck.telemetry.record(delay)
-		preTime = curTime
-		preFileSize = r.getFileSize()
-	}
-	return preFileSize, preTime
-}
-
-func (r *Reader) cancelMonitor(filePath string) {
-	if r.readerDelayCheck.telemetry == nil {
-		return
-	}
-	r.readerDelayCheck.fileMissCheckMap.Delete(filePath)
-}
-
-func (r *Reader) prepareBeforeDelayCheck() (int64, time.Time) {
-	if r.readerDelayCheck.telemetry == nil {
-		return 0, time.Time{}
-	}
-	return r.getFileSize(), r.readerDelayCheck.startPollTime
-}
-func (r *Reader) getFileSize() int64 {
-	info, err := r.file.Stat()
-	if err != nil {
-		r.Errorw("Failed to get stat", zap.Error(err))
-		return -1
-	}
-	return info.Size()
 }

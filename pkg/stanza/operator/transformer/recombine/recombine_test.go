@@ -541,7 +541,7 @@ func BenchmarkRecombine(b *testing.B) {
 	cfg.IsFirstEntry = "body startsWith 'log-0'"
 	cfg.OutputIDs = []string{"fake"}
 	cfg.SourceIdentifier = entry.NewAttributeField("file.path")
-	op, err := cfg.Build(testutil.Logger(b))
+	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(b)})
 	require.NoError(b, err)
 	recombine := op.(*Transformer)
 
@@ -576,46 +576,6 @@ func BenchmarkRecombine(b *testing.B) {
 		}
 		recombine.flushUncombined(ctx)
 	}
-}
-
-func BenchmarkRecombineLimitTrigger(b *testing.B) {
-	cfg := NewConfig()
-	cfg.CombineField = entry.NewBodyField()
-	cfg.IsFirstEntry = "body == 'start'"
-	cfg.MaxLogSize = 6
-	cfg.OutputIDs = []string{"fake"}
-	op, err := cfg.Build(&operator.BuildInfoInternal{Logger: testutil.Logger(b)})
-	require.NoError(b, err)
-	recombine := op.(*Transformer)
-
-	fake := testutil.NewFakeOutput(b)
-	require.NoError(b, recombine.SetOutputs([]operator.Operator{fake}))
-	require.NoError(b, recombine.Start(nil))
-
-	go func() {
-		for {
-			<-fake.Received
-		}
-	}()
-
-	start := entry.New()
-	start.Timestamp = time.Now()
-	start.Body = "start"
-
-	next := entry.New()
-	next.Timestamp = time.Now()
-	next.Body = "next"
-
-	ctx := context.Background()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		require.NoError(b, recombine.Process(ctx, start))
-		require.NoError(b, recombine.Process(ctx, next))
-		require.NoError(b, recombine.Process(ctx, start))
-		require.NoError(b, recombine.Process(ctx, next))
-		recombine.flushUncombined(ctx)
-	}
-
 }
 
 func BenchmarkRecombineLimitTrigger(b *testing.B) {

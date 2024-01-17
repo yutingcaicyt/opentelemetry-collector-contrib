@@ -13,7 +13,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/text/encoding"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/decode"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/emit"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/fingerprint"
@@ -79,7 +78,7 @@ type Config struct {
 	IncludeFilePathResolved bool            `mapstructure:"include_file_path_resolved,omitempty"`
 	Header                  *HeaderConfig   `mapstructure:"header,omitempty"`
 	DeleteAfterRead         bool            `mapstructure:"delete_after_read,omitempty"`
-	Monitor                 MonitorConfig         `mapstructure:"monitor,omitempty"`
+	Monitor                 MonitorConfig   `mapstructure:"monitor,omitempty"`
 }
 
 type HeaderConfig struct {
@@ -179,7 +178,7 @@ func (c Config) buildManager(buildInfo *operator.BuildInfoInternal, emit emit.Ca
 		maxBatches:        c.MaxBatches,
 		previousPollFiles: make([]*reader.Reader, 0, c.MaxConcurrentFiles/2),
 		knownFiles:        []*reader.Metadata{},
-		monitorManager:  c.newMonitorManager(buildInfo),
+		monitorManager:    c.newMonitorManager(buildInfo),
 	}, nil
 }
 

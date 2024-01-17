@@ -195,34 +195,3 @@ func (sr *swReceiver) startCollector(host component.Host) error {
 
 	return nil
 }
-
-type Response struct {
-	Status string `json:"status"`
-	Msg    string `json:"msg"`
-}
-
-func (sr *swReceiver) httpHandler(rsp http.ResponseWriter, r *http.Request) {
-	rsp.Header().Set("Content-Type", "application/json")
-	b, err := io.ReadAll(r.Body)
-	if err != nil {
-		response := &Response{Status: failing, Msg: err.Error()}
-		ResponseWithJSON(rsp, response, http.StatusBadRequest)
-		return
-	}
-	var data []*v3.SegmentObject
-	if err = json.Unmarshal(b, &data); err != nil {
-		fmt.Printf("cannot Unmarshal skywalking segment collection, %v", err)
-	}
-
-	for _, segment := range data {
-		err = consumeTraces(r.Context(), segment, sr.nextConsumer, sr.httpObsrecv)
-		if err != nil {
-			fmt.Printf("cannot consume traces, %v", err)
-		}
-	}
-}
-
-func ResponseWithJSON(rsp http.ResponseWriter, response *Response, code int) {
-	rsp.WriteHeader(code)
-	_ = json.NewEncoder(rsp).Encode(response)
-}

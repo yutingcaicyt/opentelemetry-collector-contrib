@@ -1,16 +1,5 @@
-// Copyright  OpenTelemetry Authors
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
 
 package skywalkingreceiver
 
@@ -23,10 +12,13 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/featuregate"
-	"go.opentelemetry.io/collector/obsreport"
 	"go.opentelemetry.io/collector/obsreport/obsreporttest"
+	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	common "skywalking.apache.org/repo/goapi/collect/common/v3"
 	agent "skywalking.apache.org/repo/goapi/collect/language/agent/v3"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/skywalkingreceiver/internal/trace"
 )
 
 const (
@@ -122,13 +114,13 @@ func TestMetricGenerateBySendingTrace(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, tt.Shutdown(context.Background())) })
 
-	rec, er := obsreport.NewReceiver(obsreport.ReceiverSettings{
+	rec, er := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             fakeReceiver,
 		Transport:              transport,
-		ReceiverCreateSettings: tt.ToReceiverCreateSettings(),
+		ReceiverCreateSettings: receiver.CreateSettings{ID: fakeReceiver, TelemetrySettings: tt.TelemetrySettings, BuildInfo: component.NewDefaultBuildInfo()},
 	})
 	require.NoError(t, er)
-	err = consumeTraces(context.Background(), so, consumertest.NewNop(), rec)
+	err = trace.ConsumeTraces(context.Background(), so, consumertest.NewNop(), rec)
 	require.NoError(t, err)
 	require.NoError(t, tt.CheckReceiverTraces(transport, 2, 0))
 }

@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strconv"
 
-	"go.uber.org/zap"
 	"golang.org/x/text/encoding"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/operator"

@@ -43,6 +43,8 @@ type Reader struct {
 	processFunc     emit.Callback
 	emitFunc        emit.Callback
 	deleteAtEOF     bool
+
+	ReaderDelayCheck DelayCheck
 }
 
 // offsetToEnd sets the starting offset
@@ -71,6 +73,8 @@ func (r *Reader) ReadToEnd(ctx context.Context) {
 
 	s := scanner.New(r, r.maxLogSize, scanner.DefaultBufferSize, r.Offset, r.splitFunc)
 
+	preFileSize, preTime := r.prepareBeforeDelayCheck()
+
 	// Iterate over the tokenized file, emitting entries as we go
 	for {
 		select {
@@ -81,6 +85,8 @@ func (r *Reader) ReadToEnd(ctx context.Context) {
 
 		ok := s.Scan()
 		if !ok {
+			// No new content is generated for this file, so it does not need to be monitored
+			r.cancelMonitor(r.file.Name())
 			if err := s.Error(); err != nil {
 				r.logger.Errorw("Failed during scan", zap.Error(err))
 			} else if r.deleteAtEOF {
@@ -112,6 +118,8 @@ func (r *Reader) ReadToEnd(ctx context.Context) {
 			}
 		}
 		r.Offset = s.Pos()
+
+		preFileSize, preTime = r.delayCheck(preFileSize, preTime)
 	}
 }
 

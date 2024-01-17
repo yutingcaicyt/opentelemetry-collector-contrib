@@ -141,7 +141,6 @@ func (m *Manager) poll(ctx context.Context) {
 	// Before consuming files, start the monitor
 	m.monitorStart(ctx, pollStartTime, matches)
 
-
 	for len(matches) > m.maxBatchFiles {
 		m.consume(ctx, matches[:m.maxBatchFiles])
 
@@ -250,11 +249,11 @@ OUTER:
 		}
 
 		if m.monitorManager != nil {
-			r.readerDelayCheck = ReaderDelayCheck{
-				startPollTime:    m.monitorManager.curPollStartTime,
-				fileMissCheckMap: m.monitorManager.fileMissCheckMap,
-				telemetry:        m.monitorManager.telemetry,
-				maxDelay:         m.monitorManager.maxDelay,
+			r.ReaderDelayCheck = reader.DelayCheck{
+				StartPollTime:    m.monitorManager.curPollStartTime,
+				FileMissCheckMap: m.monitorManager.fileMissCheckMap,
+				Telemetry:        m.monitorManager.telemetry,
+				MaxDelay:         m.monitorManager.maxDelay,
 			}
 		}
 

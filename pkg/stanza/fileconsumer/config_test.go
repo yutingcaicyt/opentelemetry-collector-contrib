@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/featuregate"
-	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/emittest"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/stanza/fileconsumer/internal/fingerprint"
@@ -857,6 +856,6 @@ func newMockOperatorConfig(cfg *Config) *mockOperatorConfig {
 
 // This function is impelmented for compatibility with operatortest
 // but is not meant to be used directly
-func (h *mockOperatorConfig) Build(*zap.SugaredLogger) (operator.Operator, error) {
+func (h *mockOperatorConfig) Build(*operator.BuildInfoInternal) (operator.Operator, error) {
 	panic("not impelemented")
 }
